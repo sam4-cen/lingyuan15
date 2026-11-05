@@ -1,0 +1,2150 @@
+为下面的 game.ts 写模拟脚本 sim/simulate.ts（tsx 运行），从 '../src/core/game' '../src/core/config' 导入。实现至少 5 种 AI 策略：greedy（每盒按满3.5秒、背包装满或体力只够回家才回家、钱优先买饭保饱腹>40）、cautious（按2秒、体力留余量30才回家、积极买饭）、random（随机按0.5~5秒、随机地点）、longhold（每次按5秒赌稀有）、upgrader（优先攒钱扩背包和升级落脚点，再买饭）。每种策略：每天早上若坏签且钱>=重抽费可选择重抽(仅 greedy/upgrader)；选地点倾向高爆率；掏到可吃物品在饱腹<50时当场吃，否则尽量装包卖；装包用自动找空位（先横后竖）；事件选项合理（同行比赛按50%胜率传 minigameWin）；倒下后 wakeUp；每局设最大步数防死循环。每种策略跑 N 局（命令行参数，默认 2000，种子 1..N），输出：平均存活天数、通关率、死于第几天的分布、平均倒下次数、每天结束时的平均金钱（金钱曲线，按天1~15，只统计活到当天的局）、平均累计收入、平均扩背包档位。同时把结果写成 JSON 到 sim/result.json。打印成易读中文表格。
+```ts
+export type Rarity = 'common' | 'good' | 'rare' | 'epic' | 'mishap';
+export type BoxSize = 'small' | 'big';
+export type FortuneTier = 'good' | 'meh' | 'bad';
+
+export interface ItemDef {
+  id: string;
+  name: string;
+  rarity: Rarity;
+  cells: 1 | 2;
+  price: number;
+  priceMax?: number;
+  edible: boolean;
+  hunger?: number;
+  stamina?: number;
+  mood?: number;
+  desc: string;
+  locations?: string[];
+}
+
+export interface LocationDef {
+  id: string;
+  name: string;
+  lootRate: number;
+  danger: number;
+  distance: number;
+  far: boolean;
+}
+
+export interface FortuneDef {
+  id: string;
+  tier: FortuneTier;
+  name: string;
+  text: string;
+  effect:
+    | 'lootUp'
+    | 'bigGuaranteeGood'
+    | 'foodUp'
+    | 'none'
+    | 'nextGoodUp'
+    | 'patrolX2'
+    | 'mishapUp'
+    | 'windy';
+  needsLocation: boolean;
+}
+
+export interface EventDef {
+  id: 'patrol' | 'guard' | 'rival' | 'auntie' | 'delivery' | 'wallet' | 'cat' | 'rain';
+  name: string;
+  weight: number;
+  options: string[];
+}
+
+export interface SleepSpotDef {
+  id: 'bench' | 'diner' | 'netcafe';
+  name: string;
+  prob: number;
+  stamina: number;
+  cost: number;
+}
+
+export interface HoldCurveStep {
+  minSec: number;
+  good: number;
+  rare: number;
+  epic: number;
+}
+
+export interface PhaseDef {
+  fromDay: number;
+  toDay: number;
+  dailyHunger: number;
+  lootMul: number;
+  patrolBonus: number;
+  rivalEnabled: boolean;
+  badFortuneBonus: number;
+  farTravelMul: number;
+}
+
+export interface BagSizeDef {
+  w: number;
+  h: number;
+  cost: number;
+}
+
+export interface HomeLevelDef {
+  name: string;
+  cost: number;
+  staminaBonus: number;
+}
+
+export interface FortuneEffectsConfig {
+  lootUp: number;
+  foodUp: number;
+  nextGoodUp: number;
+  patrolX2: number;
+  mishapUp: number;
+  windy: number;
+}
+
+export interface Config {
+  totalDays: number;
+  startHunger: number;
+  maxHunger: number;
+  startStamina: number;
+  maxStamina: number;
+  startMood: number;
+  maxMood: number;
+  startMoney: number;
+  dayStartMinute: number;
+  midnightMinute: number;
+  minutesPerDig: Record<BoxSize, number>;
+  minutesPerHoldSecond: number;
+  travelMinutes: number;
+  digStamina: Record<BoxSize, number>;
+  holdStaminaPerSec: number;
+  hungerPerDig: number;
+  moodPerDay: number;
+  phases: PhaseDef[];
+  holdCurve: HoldCurveStep[];
+  mishapStartSec: number;
+  mishapPerSec: number;
+  maxHoldSec: number;
+  itemsPerBox: Record<BoxSize, [number, number]>;
+  bigBoxBonusGood: number;
+  boxesPerLocation: [number, number];
+  boxCountFortuneDelta: Record<FortuneTier, [number, number]>;
+  bigBoxChance: Record<FortuneTier, number>;
+  moodGoldLow: { threshold: number; mul: number };
+  moodGoldHigh: { threshold: number; mul: number };
+  eventChancePerDig: number;
+  fortuneWeights: Record<FortuneTier, number>;
+  fortuneEffects: FortuneEffectsConfig;
+  rainTravelExtra: number;
+  rainMishapDelta: number;
+  catLuckDigs: number;
+  catLuckMul: number;
+  patrolLeaveStamina: number;
+  patrolMood: number;
+  rivalYieldMood: number;
+  rivalLoseStamina: number;
+  auntieHunger: number;
+  auntieMood: number;
+  deliveryHunger: number;
+  walletMoney: number;
+  walletMood: number;
+  mishapMood: number;
+  rareMood: number;
+  warmthMood: number;
+  nightWarmthChance: number;
+  nightWarmthHunger: number;
+  bagSizes: BagSizeDef[];
+  foodPrice: number;
+  foodHunger: number;
+  rerollBase: number;
+  rerollStep: number;
+  homeLevels: HomeLevelDef[];
+  benchGuardChance: number;
+  benchGuardStamina: number;
+  collapseLoseRatio: number;
+  day1GuaranteeGood: boolean;
+  adsEnabled: boolean;
+}
+
+export const ITEMS: ItemDef[] = [
+  {
+    id: 'empty_water_bottle',
+    name: '空矿泉水瓶',
+    rarity: 'common',
+    cells: 1,
+    price: 0.2,
+    edible: false,
+    desc: '深圳最稳定的理财产品',
+  },
+  {
+    id: 'crushed_can',
+    name: '压扁的易拉罐',
+    rarity: 'common',
+    cells: 1,
+    price: 0.3,
+    edible: false,
+    desc: '被人踩过，但它没放弃',
+  },
+  {
+    id: 'old_newspaper',
+    name: '旧报纸',
+    rarity: 'common',
+    cells: 1,
+    price: 0.5,
+    edible: false,
+    desc: '头条写着「就业形势向好」',
+  },
+  {
+    id: 'cardboard_box',
+    name: '纸箱',
+    rarity: 'common',
+    cells: 2,
+    price: 1.5,
+    edible: false,
+    desc: '白天能卖钱，晚上能当被子',
+  },
+  {
+    id: 'left_slipper',
+    name: '左脚拖鞋',
+    rarity: 'common',
+    cells: 1,
+    price: 0,
+    edible: false,
+    desc: '右脚在哪？这是一个哲学问题',
+  },
+  {
+    id: 'broken_umbrella',
+    name: '坏掉的雨伞',
+    rarity: 'common',
+    cells: 2,
+    price: 0.5,
+    edible: false,
+    desc: '只能挡住一半的命运',
+  },
+  {
+    id: 'half_cup_milk_tea',
+    name: '半杯奶茶',
+    rarity: 'common',
+    cells: 1,
+    price: 0,
+    edible: true,
+    hunger: 5,
+    desc: '三分糖，七分别人的口水',
+    locations: ['dongmen'],
+  },
+  {
+    id: 'cold_bun',
+    name: '冷掉的包子',
+    rarity: 'common',
+    cells: 1,
+    price: 0,
+    edible: true,
+    hunger: 15,
+    desc: '皮比你的人生还硬',
+  },
+  {
+    id: 'half_egg_tart',
+    name: '半块蛋挞',
+    rarity: 'common',
+    cells: 1,
+    price: 0,
+    edible: true,
+    hunger: 10,
+    desc: '前主人只咬了一个梦想',
+  },
+  {
+    id: 'expired_bread',
+    name: '过期 1 天的面包',
+    rarity: 'common',
+    cells: 1,
+    price: 0,
+    edible: true,
+    hunger: 20,
+    desc: '保质期只是一个建议',
+  },
+  {
+    id: 'disposable_chopsticks',
+    name: '一次性筷子',
+    rarity: 'common',
+    cells: 1,
+    price: 0.1,
+    edible: false,
+    desc: '恭喜你，离吃饭只差饭了',
+  },
+  {
+    id: 'plastic_flower',
+    name: '塑料花',
+    rarity: 'common',
+    cells: 1,
+    price: 0.5,
+    edible: false,
+    desc: '永不凋谢，就像你的贫穷',
+  },
+  {
+    id: 'old_clothes',
+    name: '旧衣服',
+    rarity: 'good',
+    cells: 2,
+    price: 3,
+    edible: false,
+    desc: '还有香水味，比你体面',
+  },
+  {
+    id: 'charging_cable',
+    name: '充电线',
+    rarity: 'good',
+    cells: 1,
+    price: 3,
+    edible: false,
+    desc: '只有一头能用，像一段感情',
+  },
+  {
+    id: 'energy_drink',
+    name: '能量饮料',
+    rarity: 'good',
+    cells: 1,
+    price: 0,
+    edible: true,
+    stamina: 15,
+    desc: '喝完感觉还能再翻 5 个桶',
+  },
+  {
+    id: 'unopened_rice_ball',
+    name: '没拆封的饭团',
+    rarity: 'good',
+    cells: 1,
+    price: 0,
+    edible: true,
+    hunger: 30,
+    desc: '今日大奖！双手合十',
+  },
+  {
+    id: 'delivery_set_meal',
+    name: '外卖套餐',
+    rarity: 'good',
+    cells: 1,
+    price: 0,
+    edible: true,
+    hunger: 35,
+    stamina: 5,
+    desc: '备注写着「不要香菜」',
+    locations: ['university_town'],
+  },
+  {
+    id: 'old_rice_cooker',
+    name: '旧电饭煲',
+    rarity: 'good',
+    cells: 2,
+    price: 8,
+    edible: false,
+    desc: '煮过无数人的梦想',
+    locations: ['baishizhou', 'university_town'],
+  },
+  {
+    id: 'half_bag_rice',
+    name: '半袋大米',
+    rarity: 'good',
+    cells: 2,
+    price: 6,
+    edible: true,
+    hunger: 25,
+    desc: '生吃需要勇气',
+    locations: ['baishizhou'],
+  },
+  {
+    id: 'exam_materials',
+    name: '考研资料',
+    rarity: 'good',
+    cells: 2,
+    price: 5,
+    edible: false,
+    desc: '上一位主人已经上岸了',
+    locations: ['university_town'],
+  },
+  {
+    id: 'plaid_shirt',
+    name: '格子衫',
+    rarity: 'good',
+    cells: 1,
+    price: 4,
+    edible: false,
+    desc: '穿上它，南山欢迎你',
+    locations: ['nanshan_tech'],
+  },
+  {
+    id: 'metro_card',
+    name: '地铁卡',
+    rarity: 'good',
+    cells: 1,
+    price: 10,
+    edible: false,
+    desc: '余额 ¥10，够你逃离一次',
+    locations: ['window_world'],
+  },
+  {
+    id: 'kite',
+    name: '风筝',
+    rarity: 'good',
+    cells: 2,
+    price: 4,
+    edible: false,
+    desc: '它也想飞，你也想',
+    locations: ['sz_bay'],
+  },
+  {
+    id: 'power_bank',
+    name: '充电宝',
+    rarity: 'rare',
+    cells: 1,
+    price: 15,
+    edible: false,
+    desc: '剩 3% 电，和你一样',
+    locations: ['huaqiangbei'],
+  },
+  {
+    id: 'mechanical_keyboard',
+    name: '机械键盘',
+    rarity: 'rare',
+    cells: 2,
+    price: 25,
+    edible: false,
+    desc: '少了一个 Enter，所以没法回车',
+    locations: ['nanshan_tech'],
+  },
+  {
+    id: 'old_phone',
+    name: '旧手机',
+    rarity: 'rare',
+    cells: 1,
+    price: 40,
+    edible: false,
+    desc: '屏碎了，但相册里全是自拍',
+    locations: ['huaqiangbei'],
+  },
+  {
+    id: 'unopened_mooncake',
+    name: '没拆封的月饼',
+    rarity: 'rare',
+    cells: 1,
+    price: 12,
+    edible: true,
+    hunger: 40,
+    desc: '是五仁的，懂的都懂',
+    locations: ['futian_cbd'],
+  },
+  {
+    id: 'brand_briefcase',
+    name: '名牌公文包',
+    rarity: 'rare',
+    cells: 2,
+    price: 35,
+    edible: false,
+    desc: '里面装着别人的 KPI',
+    locations: ['futian_cbd'],
+  },
+  {
+    id: 'off_season_tshirt',
+    name: '过季潮牌 T 恤',
+    rarity: 'rare',
+    cells: 1,
+    price: 20,
+    edible: false,
+    desc: '胸口印着「LUCKY」，讽刺拉满',
+    locations: ['dongmen'],
+  },
+  {
+    id: 'graphics_card',
+    name: '显卡',
+    rarity: 'epic',
+    cells: 2,
+    price: 120,
+    edible: false,
+    desc: '华强北的传说，挖矿遗孤',
+    locations: ['huaqiangbei'],
+  },
+  {
+    id: 'golden_koi',
+    name: '金色锦鲤摆件',
+    rarity: 'epic',
+    cells: 1,
+    price: 60,
+    edible: false,
+    desc: '转发它，然后继续穷',
+  },
+  {
+    id: 'scratch_card',
+    name: '刮刮乐（未刮）',
+    rarity: 'epic',
+    cells: 1,
+    price: 0,
+    priceMax: 200,
+    edible: false,
+    desc: '回家才揭晓，人生就是赌',
+  },
+  {
+    id: 'dead_mouse',
+    name: '死老鼠',
+    rarity: 'mishap',
+    cells: 1,
+    price: 0,
+    edible: false,
+    mood: -10,
+    desc: '它比你先放弃了深圳',
+  },
+  {
+    id: 'cat_hair',
+    name: '猫毛一团',
+    rarity: 'mishap',
+    cells: 1,
+    price: 0,
+    edible: false,
+    mood: -5,
+    desc: '被抓伤后的纪念品',
+  },
+];
+
+export const LOCATIONS: LocationDef[] = [
+  {
+    id: 'baishizhou',
+    name: '白石洲',
+    lootRate: 1.0,
+    danger: 0.6,
+    distance: 5,
+    far: false,
+  },
+  {
+    id: 'dongmen',
+    name: '东门',
+    lootRate: 1.25,
+    danger: 1.0,
+    distance: 10,
+    far: false,
+  },
+  {
+    id: 'huaqiangbei',
+    name: '华强北',
+    lootRate: 1.25,
+    danger: 1.6,
+    distance: 12,
+    far: false,
+  },
+  {
+    id: 'futian_cbd',
+    name: '福田 CBD',
+    lootRate: 1.0,
+    danger: 1.6,
+    distance: 18,
+    far: true,
+  },
+  {
+    id: 'nanshan_tech',
+    name: '南山科技园',
+    lootRate: 1.0,
+    danger: 1.0,
+    distance: 15,
+    far: true,
+  },
+  {
+    id: 'sz_bay',
+    name: '深圳湾公园',
+    lootRate: 0.8,
+    danger: 0.6,
+    distance: 20,
+    far: true,
+  },
+  {
+    id: 'window_world',
+    name: '世界之窗地铁站',
+    lootRate: 1.0,
+    danger: 1.0,
+    distance: 12,
+    far: false,
+  },
+  {
+    id: 'university_town',
+    name: '大学城',
+    lootRate: 1.0,
+    danger: 0.6,
+    distance: 22,
+    far: true,
+  },
+];
+
+export const FORTUNES: FortuneDef[] = [
+  {
+    id: 'great_luck',
+    tier: 'good',
+    name: '大吉',
+    text: '今日华强北大吉，宝贝在等你',
+    effect: 'lootUp',
+    needsLocation: true,
+  },
+  {
+    id: 'mid_luck',
+    tier: 'good',
+    name: '中吉',
+    text: '东门有人刚搬家',
+    effect: 'bigGuaranteeGood',
+    needsLocation: true,
+  },
+  {
+    id: 'small_luck',
+    tier: 'good',
+    name: '小吉',
+    text: '宜吃饭',
+    effect: 'foodUp',
+    needsLocation: false,
+  },
+  {
+    id: 'flat',
+    tier: 'meh',
+    name: '平',
+    text: '今天适合呼吸',
+    effect: 'none',
+    needsLocation: false,
+  },
+  {
+    id: 'lazy',
+    tier: 'meh',
+    name: '烂',
+    text: '今日宜躺平，忌努力',
+    effect: 'none',
+    needsLocation: false,
+  },
+  {
+    id: 'charging',
+    tier: 'meh',
+    name: '烂',
+    text: '你的运气在充电',
+    effect: 'nextGoodUp',
+    needsLocation: false,
+  },
+  {
+    id: 'patrol_warning',
+    tier: 'bad',
+    name: '凶',
+    text: '今日福田 CBD 有巡逻大叔',
+    effect: 'patrolX2',
+    needsLocation: true,
+  },
+  {
+    id: 'cat_many',
+    tier: 'bad',
+    name: '凶',
+    text: '南山猫多',
+    effect: 'mishapUp',
+    needsLocation: true,
+  },
+  {
+    id: 'windy',
+    tier: 'bad',
+    name: '大凶',
+    text: '今天风大',
+    effect: 'windy',
+    needsLocation: false,
+  },
+];
+
+export const EVENTS: EventDef[] = [
+  {
+    id: 'patrol',
+    name: '巡逻大叔来了',
+    weight: 30,
+    options: ['礼貌离开', '装作散步'],
+  },
+  {
+    id: 'guard',
+    name: '小区保安',
+    weight: 12,
+    options: ['被请出小区'],
+  },
+  {
+    id: 'rival',
+    name: '同行抢地盘',
+    weight: 15,
+    options: ['让给他', '比谁掏得快'],
+  },
+  {
+    id: 'auntie',
+    name: '好心阿姨送饭',
+    weight: 10,
+    options: ['谢谢阿姨'],
+  },
+  {
+    id: 'delivery',
+    name: '外卖小哥送单错了',
+    weight: 10,
+    options: ['收下外卖'],
+  },
+  {
+    id: 'wallet',
+    name: '捡到钱包',
+    weight: 5,
+    options: ['归还钱包'],
+  },
+  {
+    id: 'cat',
+    name: '流浪猫跟着你',
+    weight: 10,
+    options: ['喂它', '不喂'],
+  },
+  {
+    id: 'rain',
+    name: '下雨了',
+    weight: 8,
+    options: ['撑住'],
+  },
+];
+
+export const SLEEP_SPOTS: SleepSpotDef[] = [
+  {
+    id: 'bench',
+    name: '公园长椅',
+    prob: 0.5,
+    stamina: 40,
+    cost: 0,
+  },
+  {
+    id: 'diner',
+    name: '通宵堡',
+    prob: 0.3,
+    stamina: 60,
+    cost: 5,
+  },
+  {
+    id: 'netcafe',
+    name: '星河网咖',
+    prob: 0.2,
+    stamina: 80,
+    cost: 12,
+  },
+];
+
+export const CONFIG: Config = {
+  totalDays: 15,
+  startHunger: 60,
+  maxHunger: 100,
+  startStamina: 100,
+  maxStamina: 100,
+  startMood: 70,
+  maxMood: 100,
+  startMoney: 0,
+
+  dayStartMinute: 480,
+  midnightMinute: 1440,
+  minutesPerDig: { small: 15, big: 30 },
+  minutesPerHoldSecond: 2,
+  travelMinutes: 40,
+
+  digStamina: { small: 5, big: 12 },
+  holdStaminaPerSec: 3,
+  hungerPerDig: 1,
+  moodPerDay: -5,
+
+  phases: [
+    {
+      fromDay: 1,
+      toDay: 4,
+      dailyHunger: 25,
+      lootMul: 1.0,
+      patrolBonus: 0,
+      rivalEnabled: false,
+      badFortuneBonus: 0,
+      farTravelMul: 1,
+    },
+    {
+      fromDay: 5,
+      toDay: 9,
+      dailyHunger: 30,
+      lootMul: 0.9,
+      patrolBonus: 0.1,
+      rivalEnabled: true,
+      badFortuneBonus: 0,
+      farTravelMul: 1,
+    },
+    {
+      fromDay: 10,
+      toDay: 15,
+      dailyHunger: 40,
+      lootMul: 0.8,
+      patrolBonus: 0.1,
+      rivalEnabled: true,
+      badFortuneBonus: 0.15,
+      farTravelMul: 1.5,
+    },
+  ],
+
+  holdCurve: [
+    { minSec: 0, good: 0.05, rare: 0, epic: 0 },
+    { minSec: 1, good: 0.15, rare: 0, epic: 0 },
+    { minSec: 2, good: 0.3, rare: 0.02, epic: 0 },
+    { minSec: 3, good: 0.35, rare: 0.08, epic: 0.02 },
+  ],
+  mishapStartSec: 4,
+  mishapPerSec: 0.1,
+  maxHoldSec: 6,
+
+  itemsPerBox: { small: [1, 1], big: [1, 3] },
+  bigBoxBonusGood: 0.1,
+  boxesPerLocation: [3, 6],
+  boxCountFortuneDelta: {
+    good: [1, 2],
+    meh: [0, 0],
+    bad: [-1, -1],
+  },
+  bigBoxChance: {
+    good: 0.5,
+    meh: 0.35,
+    bad: 0.2,
+  },
+
+  moodGoldLow: { threshold: 30, mul: 0.8 },
+  moodGoldHigh: { threshold: 80, mul: 1.1 },
+
+  eventChancePerDig: 0.12,
+  fortuneWeights: {
+    good: 0.35,
+    meh: 0.4,
+    bad: 0.25,
+  },
+  fortuneEffects: {
+    lootUp: 0.5,
+    foodUp: 0.2,
+    nextGoodUp: 0.1,
+    patrolX2: 2,
+    mishapUp: 0.15,
+    windy: 5,
+  },
+
+  rainTravelExtra: 5,
+  rainMishapDelta: -0.1,
+  catLuckDigs: 3,
+  catLuckMul: 0.2,
+
+  patrolLeaveStamina: 5,
+  patrolMood: -8,
+  rivalYieldMood: -5,
+  rivalLoseStamina: 10,
+  auntieHunger: 30,
+  auntieMood: 15,
+  deliveryHunger: 25,
+  walletMoney: 20,
+  walletMood: 20,
+
+  mishapMood: -10,
+  rareMood: 10,
+  warmthMood: 15,
+  nightWarmthChance: 0.15,
+  nightWarmthHunger: 15,
+
+  bagSizes: [
+    { w: 3, h: 3, cost: 0 },
+    { w: 3, h: 4, cost: 40 },
+    { w: 4, h: 4, cost: 90 },
+  ],
+
+  foodPrice: 8,
+  foodHunger: 30,
+  rerollBase: 5,
+  rerollStep: 5,
+
+  homeLevels: [
+    { name: '城中村床位', cost: 0, staminaBonus: 0 },
+    { name: '回收站角落', cost: 60, staminaBonus: 10 },
+    { name: '回收站小间', cost: 150, staminaBonus: 20 },
+  ],
+
+  benchGuardChance: 0.2,
+  benchGuardStamina: 10,
+  collapseLoseRatio: 0.5,
+
+  day1GuaranteeGood: true,
+  adsEnabled: false,
+};
+```
+```ts
+import {
+  CONFIG,
+  ITEMS,
+  LOCATIONS,
+  FORTUNES,
+  EVENTS,
+  SLEEP_SPOTS,
+  Rarity,
+  BoxSize,
+  FortuneTier,
+  ItemDef,
+  LocationDef,
+  FortuneDef,
+  EventDef,
+  SleepSpotDef,
+  Config,
+  PhaseDef,
+} from './config';
+
+export type Phase = 'fortune' | 'map' | 'location' | 'event' | 'home' | 'collapsed' | 'won' | 'lost';
+
+export interface Box {
+  id: string;
+  size: BoxSize;
+  opened: boolean;
+}
+
+export interface ItemInst {
+  uid: number;
+  itemId: string;
+  scratchValue?: number;
+}
+
+export interface Placed {
+  uid: number;
+  itemId: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  scratchValue?: number;
+}
+
+export interface DigResult {
+  ok: boolean;
+  reason?: string;
+  items: ItemInst[];
+  mishap: boolean;
+  glow: 'white' | 'blue' | 'gold' | 'rainbow';
+  staminaCost: number;
+  quip: string;
+  event?: PendingEvent;
+  collapsed?: boolean;
+}
+
+export interface PendingEvent {
+  id: EventDef['id'];
+  name: string;
+  options: string[];
+}
+
+export interface DayReport {
+  day: number;
+  income: number;
+  soldItems: string[];
+  bestItem?: string;
+  hungerLeft: number;
+  quip: string;
+  warmth?: boolean;
+}
+
+export interface CollapseReport {
+  day: number;
+  spot: SleepSpotDef['id'];
+  spotName: string;
+  lostItems: string[];
+  staminaNextDay: number;
+  text: string;
+}
+
+export class Rng {
+  private state: number;
+
+  constructor(seed: number) {
+    this.state = seed >>> 0;
+  }
+
+  next(): number {
+    let t = (this.state += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+
+  int(a: number, b: number): number {
+    const min = Math.ceil(a);
+    const max = Math.floor(b);
+    if (min > max) return min;
+    return Math.floor(this.next() * (max - min + 1)) + min;
+  }
+
+  pick<T>(arr: T[]): T {
+    if (arr.length === 0) throw new Error('pick from empty array');
+    return arr[Math.floor(this.next() * arr.length)];
+  }
+
+  chance(p: number): boolean {
+    return this.next() < p;
+  }
+}
+
+export class Game {
+  private readonly cfg: Config;
+  private rng: Rng;
+
+  public day: number;
+  public minute: number;
+  public hunger: number;
+  public stamina: number;
+  public mood: number;
+  public money: number;
+  public phase: Phase;
+  public location: string | null;
+  public fortune: FortuneDef | null;
+  public fortuneLocation: string | null;
+  public rerollCount: number;
+  public bagLevel: number;
+  public homeLevel: number;
+  public bag: Placed[];
+  public floor: ItemInst[];
+  public bannedToday: string[];
+  public raining: boolean;
+  public catLuck: number;
+  public deathCause: string;
+  public totalIncome: number;
+  public log: string[];
+  public lastDayReport: DayReport | null;
+  public lastCollapse: CollapseReport | null;
+  public history: { day: number; money: number; hunger: number; stamina: number }[];
+
+  private boxes: Map<string, Box[]>;
+  private nextUid: number;
+  private pendingEvent: PendingEvent | null;
+  private dayHasGoodOrAbove: boolean;
+  private fortuneGuaranteeUsed: boolean;
+  private todayEdibleSeen: string[];
+
+  constructor(seed: number, cfg: Config = CONFIG) {
+    this.cfg = cfg;
+    this.rng = new Rng(seed);
+
+    this.day = 1;
+    this.minute = cfg.dayStartMinute;
+    this.hunger = cfg.startHunger;
+    this.stamina = cfg.startStamina;
+    this.mood = cfg.startMood;
+    this.money = cfg.startMoney;
+    this.phase = 'fortune';
+    this.location = null;
+    this.fortune = null;
+    this.fortuneLocation = null;
+    this.rerollCount = 0;
+    this.bagLevel = 0;
+    this.homeLevel = 0;
+    this.bag = [];
+    this.floor = [];
+    this.bannedToday = [];
+    this.raining = false;
+    this.catLuck = 0;
+    this.deathCause = '';
+    this.totalIncome = 0;
+    this.log = [];
+    this.lastDayReport = null;
+    this.lastCollapse = null;
+    this.history = [];
+    this.boxes = new Map();
+    this.nextUid = 1;
+    this.pendingEvent = null;
+    this.dayHasGoodOrAbove = false;
+    this.fortuneGuaranteeUsed = false;
+    this.todayEdibleSeen = [];
+  }
+
+  get bagW(): number {
+    return this.cfg.bagSizes[this.bagLevel].w;
+  }
+
+  get bagH(): number {
+    return this.cfg.bagSizes[this.bagLevel].h;
+  }
+
+  get maxStamina(): number {
+    return this.cfg.maxStamina + this.cfg.homeLevels[this.homeLevel].staminaBonus;
+  }
+
+  get dailyHunger(): number {
+    return this.currentPhaseDef().dailyHunger;
+  }
+
+  startGame(): void {
+    this.day = 1;
+    this.minute = this.cfg.dayStartMinute;
+    this.hunger = this.cfg.startHunger;
+    this.stamina = this.cfg.startStamina;
+    this.mood = this.cfg.startMood;
+    this.money = this.cfg.startMoney;
+    this.phase = 'fortune';
+    this.location = null;
+    this.fortune = null;
+    this.fortuneLocation = null;
+    this.rerollCount = 0;
+    this.bagLevel = 0;
+    this.homeLevel = 0;
+    this.bag = [];
+    this.floor = [];
+    this.bannedToday = [];
+    this.raining = false;
+    this.catLuck = 0;
+    this.deathCause = '';
+    this.totalIncome = 0;
+    this.log = [];
+    this.lastDayReport = null;
+    this.lastCollapse = null;
+    this.history = [];
+    this.boxes = new Map();
+    this.nextUid = 1;
+    this.pendingEvent = null;
+    this.dayHasGoodOrAbove = false;
+    this.fortuneGuaranteeUsed = false;
+    this.todayEdibleSeen = [];
+    this.drawFortune();
+    this.phase = 'fortune';
+  }
+
+  drawFortune(): void {
+    this.drawFortuneInternal();
+  }
+
+  rerollCost(): number {
+    return this.cfg.rerollBase + this.cfg.rerollStep * this.rerollCount;
+  }
+
+  rerollFortune(): boolean {
+    if (this.phase !== 'fortune') return false;
+    const cost = this.rerollCost();
+    if (this.money < cost) return false;
+    this.money -= cost;
+    this.rerollCount++;
+    this.drawFortune();
+    return true;
+  }
+
+  acceptFortune(): void {
+    if (this.phase !== 'fortune' || !this.fortune) return;
+    const tier = this.fortune.tier;
+    const delta = this.cfg.boxCountFortuneDelta[tier];
+    const minBase = this.cfg.boxesPerLocation[0];
+    const maxBase = this.cfg.boxesPerLocation[1];
+
+    this.boxes = new Map();
+    for (const loc of LOCATIONS) {
+      let count = this.rng.int(minBase + delta[0], maxBase + delta[1]);
+      count = Math.max(1, count);
+      const boxes: Box[] = [];
+      for (let i = 0; i < count; i++) {
+        const size: BoxSize = this.rng.chance(this.cfg.bigBoxChance[tier]) ? 'big' : 'small';
+        boxes.push({ id: `box_${loc.id}_${i}`, size, opened: false });
+      }
+      this.boxes.set(loc.id, boxes);
+    }
+    this.phase = 'map';
+    this.bannedToday = [];
+  }
+
+  boxesAt(locId: string): Box[] {
+    return this.boxes.get(locId) ?? [];
+  }
+
+  travelCost(locId: string): number {
+    const loc = this.findLocation(locId);
+    if (!loc) return this.cfg.maxStamina * 10;
+    let cost: number;
+    if (this.location == null) {
+      cost = loc.distance;
+    } else {
+      const curLoc = this.findLocation(this.location);
+      if (!curLoc) cost = loc.distance;
+      else cost = Math.abs(curLoc.distance - loc.distance) + 5;
+    }
+    cost = Math.max(5, cost);
+
+    const phaseDef = this.currentPhaseDef();
+    if (loc.far && phaseDef.farTravelMul !== 1) {
+      cost = Math.floor(cost * phaseDef.farTravelMul);
+    }
+    if (this.fortune?.effect === 'windy') {
+      cost += this.cfg.fortuneEffects.windy;
+    }
+    if (this.raining) {
+      cost += this.cfg.rainTravelExtra;
+    }
+    return Math.max(5, cost);
+  }
+
+  homeCost(): number {
+    if (this.location == null) return 0;
+    const loc = this.findLocation(this.location);
+    if (!loc) return 0;
+    let cost = loc.distance;
+    const phaseDef = this.currentPhaseDef();
+    if (loc.far && phaseDef.farTravelMul !== 1) {
+      cost = Math.floor(cost * phaseDef.farTravelMul);
+    }
+    if (this.fortune?.effect === 'windy') {
+      cost += this.cfg.fortuneEffects.windy;
+    }
+    if (this.raining) {
+      cost += this.cfg.rainTravelExtra;
+    }
+    return Math.max(5, cost);
+  }
+
+  travel(locId: string): boolean {
+    if (this.phase !== 'map' && this.phase !== 'location') return false;
+    if (this.bannedToday.includes(locId)) return false;
+    const loc = this.findLocation(locId);
+    if (!loc) return false;
+
+    const cost = this.travelCost(locId);
+    this.stamina -= cost;
+    this.minute += this.cfg.travelMinutes;
+    this.location = locId;
+    this.phase = 'location';
+
+    if (this.stamina <= 0) {
+      this.collapse();
+      return true;
+    }
+
+    this.checkMidnight();
+    return true;
+  }
+
+  goldChance(holdSec: number, boxId: string): number {
+    const box = this.findBox(boxId);
+    if (!box || !this.location) return 0;
+    const clampHold = Math.min(Math.max(0, holdSec), this.cfg.maxHoldSec);
+    let goodP = 0;
+    let rareP = 0;
+    let epicP = 0;
+    for (const step of this.cfg.holdCurve) {
+      if (step.minSec <= clampHold) {
+        goodP = step.good;
+        rareP = step.rare;
+        epicP = step.epic;
+      } else break;
+    }
+
+    const locId = this.location;
+    const loc = this.findLocation(locId);
+    if (!loc) return 0;
+    const phaseDef = this.currentPhaseDef();
+    let mul = loc.lootRate * phaseDef.lootMul;
+    if (this.fortune?.effect === 'lootUp' && this.fortuneLocation === locId) {
+      mul *= 1 + this.cfg.fortuneEffects.lootUp;
+    }
+    if (this.catLuck > 0) {
+      mul *= 1 + this.cfg.catLuckMul;
+    }
+    if (this.mood < this.cfg.moodGoldLow.threshold) {
+      mul *= this.cfg.moodGoldLow.mul;
+    } else if (this.mood >= this.cfg.moodGoldHigh.threshold) {
+      mul *= this.cfg.moodGoldHigh.mul;
+    }
+
+    rareP *= mul;
+    epicP *= mul;
+    rareP = Math.min(1, Math.max(0, rareP));
+    epicP = Math.min(1, Math.max(0, epicP));
+    return Math.min(1, rareP + epicP);
+  }
+
+  glowFor(holdSec: number, boxId: string): 'white' | 'blue' | 'gold' | 'rainbow' {
+    const box = this.findBox(boxId);
+    if (!box || !this.location) return 'white';
+    const clampHold = Math.min(Math.max(0, holdSec), this.cfg.maxHoldSec);
+    let goodP = 0;
+    let rareP = 0;
+    let epicP = 0;
+    for (const step of this.cfg.holdCurve) {
+      if (step.minSec <= clampHold) {
+        goodP = step.good;
+        rareP = step.rare;
+        epicP = step.epic;
+      } else break;
+    }
+
+    const locId = this.location;
+    const loc = this.findLocation(locId);
+    if (!loc) return 'white';
+    const phaseDef = this.currentPhaseDef();
+    let mul = loc.lootRate * phaseDef.lootMul;
+    if (this.fortune?.effect === 'lootUp' && this.fortuneLocation === locId) {
+      mul *= 1 + this.cfg.fortuneEffects.lootUp;
+    }
+    if (this.catLuck > 0) {
+      mul *= 1 + this.cfg.catLuckMul;
+    }
+    if (this.mood < this.cfg.moodGoldLow.threshold) {
+      mul *= this.cfg.moodGoldLow.mul;
+    } else if (this.mood >= this.cfg.moodGoldHigh.threshold) {
+      mul *= this.cfg.moodGoldHigh.mul;
+    }
+
+    goodP *= mul;
+    rareP *= mul;
+    epicP *= mul;
+    if (box.size === 'big') {
+      goodP += this.cfg.bigBoxBonusGood;
+    }
+    goodP = Math.min(1, Math.max(0, goodP));
+    rareP = Math.min(1, Math.max(0, rareP));
+    epicP = Math.min(1, Math.max(0, epicP));
+
+    if (epicP > 0) return 'rainbow';
+    if (rareP > 0) return 'gold';
+    if (goodP > 0) return 'blue';
+    return 'white';
+  }
+
+  dig(boxId: string, holdSec: number): DigResult {
+    if (this.phase !== 'location' || this.location == null) {
+      return { ok: false, reason: '当前不能挖', items: [], mishap: false, glow: 'white', staminaCost: 0, quip: '' };
+    }
+    const locId = this.location;
+    const boxes = this.boxes.get(locId) ?? [];
+    const box = boxes.find((b) => b.id === boxId);
+    if (!box) {
+      return { ok: false, reason: '盒子不存在', items: [], mishap: false, glow: 'white', staminaCost: 0, quip: '' };
+    }
+    if (box.opened) {
+      return { ok: false, reason: '盒子已经被掏过了', items: [], mishap: false, glow: 'white', staminaCost: 0, quip: '' };
+    }
+
+    const clampHold = Math.min(Math.max(0, holdSec), this.cfg.maxHoldSec);
+    const staminaCost = this.cfg.digStamina[box.size] + clampHold * this.cfg.holdStaminaPerSec;
+    this.stamina -= staminaCost;
+    this.hunger = Math.max(0, this.hunger - this.cfg.hungerPerDig);
+    this.minute += this.cfg.minutesPerDig[box.size] + clampHold * this.cfg.minutesPerHoldSecond;
+    box.opened = true;
+
+    if (this.hunger <= 0) {
+      this.phase = 'lost';
+      this.deathCause = this.makeDeathCause();
+      return {
+        ok: false,
+        reason: '饿晕了',
+        items: [],
+        mishap: false,
+        glow: 'white',
+        staminaCost,
+        quip: '',
+        collapsed: false,
+      };
+    }
+
+    let mishapProb = 0;
+    if (clampHold > this.cfg.mishapStartSec) {
+      mishapProb = (clampHold - this.cfg.mishapStartSec) * this.cfg.mishapPerSec;
+    }
+    if (this.fortune?.effect === 'mishapUp' && this.fortuneLocation === locId) {
+      mishapProb += this.cfg.fortuneEffects.mishapUp;
+    }
+    if (this.raining) {
+      mishapProb += this.cfg.rainMishapDelta;
+    }
+    mishapProb = Math.min(1, Math.max(0, mishapProb));
+    const isMishap = this.rng.chance(mishapProb);
+
+    const items: ItemInst[] = [];
+    let glow: 'white' | 'blue' | 'gold' | 'rainbow' = 'white';
+    let quip = '';
+
+    if (isMishap) {
+      const mishapDef = this.rng.pick(ITEMS.filter((i) => i.rarity === 'mishap'));
+      items.push({ uid: this.nextUid++, itemId: mishapDef.id });
+      this.mood = Math.max(0, this.mood + this.cfg.mishapMood);
+      quip = this.makeMishapQuip();
+    } else {
+      const itemCount = box.size === 'big'
+        ? this.rng.int(this.cfg.itemsPerBox.big[0], this.cfg.itemsPerBox.big[1])
+        : this.cfg.itemsPerBox.small[0];
+
+      const day1Guarantee = this.day === 1 && this.cfg.day1GuaranteeGood && box.size === 'big' && !this.dayHasGoodOrAbove;
+      const fortuneGuarantee =
+        this.fortune?.effect === 'bigGuaranteeGood' &&
+        this.fortuneLocation === locId &&
+        box.size === 'big' &&
+        !this.fortuneGuaranteeUsed;
+      const needGuarantee = day1Guarantee || fortuneGuarantee;
+      let guaranteedFulfilled = false;
+
+      for (let i = 0; i < itemCount; i++) {
+        let rarity = this.rollRarity(clampHold, box.size, locId);
+        if (rarity === 'common' && needGuarantee && !guaranteedFulfilled) {
+          rarity = 'good';
+        }
+        if (rarity === 'good' || rarity === 'rare' || rarity === 'epic') {
+          this.dayHasGoodOrAbove = true;
+          if (needGuarantee && rarity === 'good') {
+            guaranteedFulfilled = true;
+          }
+        }
+        if (rarity === 'rare' || rarity === 'epic') {
+          this.mood = Math.min(this.cfg.maxMood, this.mood + this.cfg.rareMood);
+        }
+
+        const def = this.pickItemByRarity(rarity, locId);
+        items.push({ uid: this.nextUid++, itemId: def.id });
+        if (def.edible) {
+          this.todayEdibleSeen.push(def.id);
+        }
+        if (rarity === 'epic') {
+          glow = 'rainbow';
+        } else if (rarity === 'rare' && glow !== 'rainbow') {
+          glow = 'gold';
+        } else if (rarity === 'good' && glow === 'white') {
+          glow = 'blue';
+        }
+      }
+
+      if (needGuarantee && guaranteedFulfilled) {
+        if (fortuneGuarantee) {
+          this.fortuneGuaranteeUsed = true;
+        }
+      }
+      quip = this.makeQuip(items);
+    }
+
+    if (this.catLuck > 0) {
+      this.catLuck--;
+    }
+
+    this.floor.push(...items);
+
+    let event: PendingEvent | undefined;
+    let collapsed = false;
+
+    if (!isMishap && this.rng.chance(this.cfg.eventChancePerDig)) {
+      event = this.tryTriggerEvent(locId);
+      if (event) {
+        this.pendingEvent = event;
+        this.phase = 'event';
+      }
+    }
+
+    if (this.stamina <= 0) {
+      this.collapse();
+      collapsed = true;
+      event = undefined;
+      this.pendingEvent = null;
+    } else {
+      this.checkMidnight();
+      if ((this.phase as Phase) === 'collapsed') {
+        collapsed = true;
+        event = undefined;
+      }
+    }
+
+    return {
+      ok: true,
+      items,
+      mishap: isMishap,
+      glow,
+      staminaCost,
+      quip,
+      event,
+      collapsed,
+    };
+  }
+
+  resolveEvent(optionIndex: number, minigameWin: boolean = false): void {
+    if (this.phase !== 'event' || !this.pendingEvent) return;
+    const ev = this.pendingEvent;
+    const locId = this.location;
+    this.pendingEvent = null;
+
+    if (!locId) {
+      this.phase = 'map';
+      return;
+    }
+
+    switch (ev.id) {
+      case 'patrol': {
+        if (optionIndex === 0) {
+          this.stamina = Math.max(0, this.stamina - this.cfg.patrolLeaveStamina);
+          this.bannedToday.push(locId);
+          this.phase = 'map';
+        } else {
+          if (this.rng.chance(0.5)) {
+            this.phase = 'location';
+          } else {
+            this.mood = Math.max(0, this.mood + this.cfg.patrolMood);
+            this.bannedToday.push(locId);
+            this.phase = 'map';
+          }
+        }
+        break;
+      }
+      case 'guard': {
+        this.bannedToday.push(locId);
+        this.phase = 'map';
+        break;
+      }
+      case 'rival': {
+        if (optionIndex === 0) {
+          this.mood = Math.max(0, this.mood + this.cfg.rivalYieldMood);
+          this.phase = 'location';
+        } else {
+          if (minigameWin) {
+            const boxes = this.boxes.get(locId) ?? [];
+            boxes.push({ id: `box_extra_${this.nextUid++}`, size: 'big', opened: false });
+            this.phase = 'location';
+          } else {
+            this.stamina = Math.max(0, this.stamina - this.cfg.rivalLoseStamina);
+            this.phase = 'location';
+            if (this.stamina <= 0) {
+              this.collapse();
+            }
+          }
+        }
+        break;
+      }
+      case 'auntie': {
+        this.hunger = Math.min(this.cfg.maxHunger, this.hunger + this.cfg.auntieHunger);
+        this.mood = Math.min(this.cfg.maxMood, this.mood + this.cfg.auntieMood);
+        this.phase = 'location';
+        break;
+      }
+      case 'delivery': {
+        this.hunger = Math.min(this.cfg.maxHunger, this.hunger + this.cfg.deliveryHunger);
+        this.phase = 'location';
+        break;
+      }
+      case 'wallet': {
+        this.money += this.cfg.walletMoney;
+        this.mood = Math.min(this.cfg.maxMood, this.mood + this.cfg.walletMood);
+        this.phase = 'location';
+        break;
+      }
+      case 'cat': {
+        if (optionIndex === 0) {
+          const foodUid = this.findEdibleUid();
+          if (foodUid != null) {
+            this.eat(foodUid);
+            this.catLuck = this.cfg.catLuckDigs;
+          }
+        }
+        this.phase = 'location';
+        break;
+      }
+      case 'rain': {
+        this.raining = true;
+        this.phase = 'location';
+        break;
+      }
+    }
+  }
+
+  canPlace(itemCells: number, x: number, y: number, rotated: boolean): boolean {
+    const w = itemCells === 2 ? (rotated ? 1 : 2) : 1;
+    const h = itemCells === 2 ? (rotated ? 2 : 1) : 1;
+    if (x < 0 || y < 0 || x + w > this.bagW || y + h > this.bagH) return false;
+    for (const p of this.bag) {
+      if (this.rectsOverlap(x, y, w, h, p.x, p.y, p.w, p.h)) return false;
+    }
+    return true;
+  }
+
+  placeFromFloor(uid: number, x: number, y: number, rotated: boolean = false): boolean {
+    const idx = this.floor.findIndex((i) => i.uid === uid);
+    if (idx === -1) return false;
+    const item = this.floor[idx];
+    const def = this.findItemDef(item.itemId);
+    if (!def) return false;
+    if (!this.canPlace(def.cells, x, y, rotated)) return false;
+
+    const w = def.cells === 2 ? (rotated ? 1 : 2) : 1;
+    const h = def.cells === 2 ? (rotated ? 2 : 1) : 1;
+    this.floor.splice(idx, 1);
+    this.bag.push({ uid: item.uid, itemId: item.itemId, x, y, w, h, scratchValue: item.scratchValue });
+    return true;
+  }
+
+  moveToFloor(uid: number): boolean {
+    const idx = this.bag.findIndex((p) => p.uid === uid);
+    if (idx === -1) return false;
+    const p = this.bag[idx];
+    this.bag.splice(idx, 1);
+    this.floor.push({ uid: p.uid, itemId: p.itemId, scratchValue: p.scratchValue });
+    return true;
+  }
+
+  discard(uid: number): boolean {
+    const idx = this.floor.findIndex((i) => i.uid === uid);
+    if (idx === -1) return false;
+    this.floor.splice(idx, 1);
+    return true;
+  }
+
+  eat(uid: number): boolean {
+    let idx = this.floor.findIndex((i) => i.uid === uid);
+    let isBag = false;
+    if (idx === -1) {
+      idx = this.bag.findIndex((p) => p.uid === uid);
+      isBag = true;
+    }
+    if (idx === -1) return false;
+
+    const item = isBag ? this.bag[idx] : this.floor[idx];
+    const def = this.findItemDef(item.itemId);
+    if (!def || !def.edible) return false;
+
+    let foodMul = 1;
+    if (this.fortune?.effect === 'foodUp') {
+      foodMul = 1 + this.cfg.fortuneEffects.foodUp;
+    }
+    if (def.hunger) {
+      this.hunger = Math.min(this.cfg.maxHunger, this.hunger + Math.round(def.hunger * foodMul));
+    }
+    if (def.stamina) {
+      this.stamina = Math.min(this.maxStamina, this.stamina + def.stamina);
+    }
+    if (def.mood) {
+      this.mood = Math.min(this.cfg.maxMood, this.mood + def.mood);
+    }
+
+    if (isBag) {
+      this.bag.splice(idx, 1);
+    } else {
+      this.floor.splice(idx, 1);
+    }
+    return true;
+  }
+
+  leaveLocation(): void {
+    if (this.location == null) return;
+    this.clearFloor('离开时，没装的东西落在了原地');
+    this.location = null;
+    this.phase = 'map';
+  }
+
+  goHome(): boolean {
+    if (this.phase === 'won' || this.phase === 'lost' || this.phase === 'collapsed') return false;
+    if (this.location == null) {
+      if (this.phase === 'home') return true;
+      this.phase = 'home';
+      this.sellBagAndReport();
+      return true;
+    }
+
+    const cost = this.homeCost();
+    if (this.stamina < cost) return false;
+    this.stamina -= cost;
+    this.location = null;
+    this.phase = 'home';
+    this.clearFloor('回家路上，面前的宝贝不见了');
+    this.sellBagAndReport();
+    return true;
+  }
+
+  endDayAway(): void {
+    if (!this.goHome()) {
+      this.collapse();
+    }
+  }
+
+  buyFood(): boolean {
+    if (this.phase !== 'home') return false;
+    if (this.money < this.cfg.foodPrice) return false;
+    this.money -= this.cfg.foodPrice;
+    this.hunger = Math.min(this.cfg.maxHunger, this.hunger + this.cfg.foodHunger);
+    return true;
+  }
+
+  expandBag(): boolean {
+    if (this.bagLevel >= this.cfg.bagSizes.length - 1) return false;
+    const cost = this.cfg.bagSizes[this.bagLevel + 1].cost;
+    if (this.money < cost) return false;
+    this.money -= cost;
+    this.bagLevel++;
+    return true;
+  }
+
+  upgradeHome(): boolean {
+    if (this.homeLevel >= this.cfg.homeLevels.length - 1) return false;
+    const cost = this.cfg.homeLevels[this.homeLevel + 1].cost;
+    if (this.money < cost) return false;
+    this.money -= cost;
+    this.homeLevel++;
+    return true;
+  }
+
+  sleep(): void {
+    if (this.phase !== 'home') return;
+
+    if (this.rng.chance(this.cfg.nightWarmthChance)) {
+      this.hunger = Math.min(this.cfg.maxHunger, this.hunger + this.cfg.nightWarmthHunger);
+      this.mood = Math.min(this.cfg.maxMood, this.mood + this.cfg.warmthMood);
+      if (this.lastDayReport) {
+        this.lastDayReport.warmth = true;
+      }
+    }
+
+    this.hunger -= this.dailyHunger;
+    this.mood += this.cfg.moodPerDay;
+    this.mood = Math.max(0, Math.min(this.cfg.maxMood, this.mood));
+    this.stamina = this.maxStamina;
+
+    this.history.push({ day: this.day, money: this.money, hunger: this.hunger, stamina: this.stamina });
+
+    if (this.hunger <= 0) {
+      this.phase = 'lost';
+      this.deathCause = this.makeDeathCause();
+      return;
+    }
+    if (this.day === this.cfg.totalDays) {
+      this.phase = 'won';
+      return;
+    }
+
+    this.day += 1;
+    this.minute = this.cfg.dayStartMinute;
+    this.floor = [];
+    this.bag = [];
+    this.bannedToday = [];
+    this.raining = false;
+    this.catLuck = 0;
+    this.dayHasGoodOrAbove = false;
+    this.fortuneGuaranteeUsed = false;
+    this.todayEdibleSeen = [];
+    this.pendingEvent = null;
+    this.lastDayReport = null;
+    this.drawFortune();
+    this.phase = 'fortune';
+  }
+
+  collapse(): void {
+    if (this.phase === 'won' || this.phase === 'lost') return;
+
+    const spot = this.chooseSleepSpot();
+    const lostItems: string[] = [];
+    const loseCount = Math.floor(this.bag.length * this.cfg.collapseLoseRatio);
+    for (let i = 0; i < loseCount && this.bag.length > 0; i++) {
+      const idx = Math.floor(this.rng.next() * this.bag.length);
+      const removed = this.bag.splice(idx, 1)[0];
+      const def = this.findItemDef(removed.itemId);
+      if (def) lostItems.push(def.name);
+    }
+
+    this.clearFloor('倒下后，面前的宝贝消失了');
+
+    this.hunger -= this.dailyHunger;
+    this.mood += this.cfg.moodPerDay;
+    this.mood = Math.max(0, Math.min(this.cfg.maxMood, this.mood));
+
+    if (this.hunger <= 0) {
+      this.phase = 'lost';
+      this.deathCause = this.makeDeathCause();
+      return;
+    }
+
+    let finalSpot = spot;
+    let staminaNext = spot.stamina;
+    if (spot.cost > 0) {
+      if (this.money >= spot.cost) {
+        this.money -= spot.cost;
+      } else {
+        finalSpot = SLEEP_SPOTS[0];
+        staminaNext = finalSpot.stamina;
+        if (this.rng.chance(this.cfg.benchGuardChance)) {
+          staminaNext -= this.cfg.benchGuardStamina;
+        }
+      }
+    } else {
+      if (finalSpot.id === 'bench' && this.rng.chance(this.cfg.benchGuardChance)) {
+        staminaNext -= this.cfg.benchGuardStamina;
+      }
+    }
+    staminaNext = Math.max(0, staminaNext);
+    this.stamina = staminaNext;
+
+    this.lastCollapse = {
+      day: this.day,
+      spot: finalSpot.id,
+      spotName: finalSpot.name,
+      lostItems,
+      staminaNextDay: staminaNext,
+      text: this.makeCollapseText(finalSpot.name, lostItems),
+    };
+    this.phase = 'collapsed';
+    this.pendingEvent = null;
+  }
+
+  wakeUp(): void {
+    if (this.phase !== 'collapsed') return;
+    if (this.day === this.cfg.totalDays) {
+      this.phase = 'won';
+      return;
+    }
+
+    this.history.push({ day: this.day, money: this.money, hunger: this.hunger, stamina: this.stamina });
+    this.day += 1;
+    this.minute = this.cfg.dayStartMinute;
+    this.floor = [];
+    this.bag = [];
+    this.bannedToday = [];
+    this.raining = false;
+    this.catLuck = 0;
+    this.dayHasGoodOrAbove = false;
+    this.fortuneGuaranteeUsed = false;
+    this.todayEdibleSeen = [];
+    this.pendingEvent = null;
+    this.lastCollapse = null;
+    this.location = null;
+    this.drawFortune();
+    this.phase = 'fortune';
+  }
+
+  private drawFortuneInternal(): void {
+    const previousFortune = this.fortune;
+    let goodWeight = this.cfg.fortuneWeights.good;
+    let mehWeight = this.cfg.fortuneWeights.meh;
+    let badWeight = this.cfg.fortuneWeights.bad;
+
+    if (previousFortune?.effect === 'nextGoodUp') {
+      goodWeight += this.cfg.fortuneEffects.nextGoodUp;
+    }
+
+    const phaseDef = this.currentPhaseDef();
+    if (phaseDef.badFortuneBonus > 0) {
+      badWeight += phaseDef.badFortuneBonus;
+    }
+
+    const total = goodWeight + mehWeight + badWeight;
+    const roll = this.rng.next() * total;
+    let tier: FortuneTier;
+    if (roll < goodWeight) {
+      tier = 'good';
+    } else if (roll < goodWeight + mehWeight) {
+      tier = 'meh';
+    } else {
+      tier = 'bad';
+    }
+
+    const candidates = FORTUNES.filter((f) => f.tier === tier);
+    const fortune = this.rng.pick(candidates);
+
+    this.fortune = fortune;
+    if (fortune.needsLocation) {
+      this.fortuneLocation = this.rng.pick(LOCATIONS).id;
+    } else {
+      this.fortuneLocation = null;
+    }
+  }
+
+  private currentPhaseDef(): PhaseDef {
+    for (const phase of this.cfg.phases) {
+      if (this.day >= phase.fromDay && this.day <= phase.toDay) {
+        return phase;
+      }
+    }
+    return this.cfg.phases[this.cfg.phases.length - 1];
+  }
+
+  private findLocation(id: string): LocationDef | undefined {
+    return LOCATIONS.find((loc) => loc.id === id);
+  }
+
+  private findBox(boxId: string): Box | undefined {
+    for (const boxes of this.boxes.values()) {
+      for (const box of boxes) {
+        if (box.id === boxId) {
+          return box;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  private rollRarity(holdSec: number, boxSize: BoxSize, locId: string): Rarity {
+    const clampHold = Math.min(Math.max(0, holdSec), this.cfg.maxHoldSec);
+    let goodP = 0;
+    let rareP = 0;
+    let epicP = 0;
+
+    for (const step of this.cfg.holdCurve) {
+      if (step.minSec <= clampHold) {
+        goodP = step.good;
+        rareP = step.rare;
+        epicP = step.epic;
+      } else {
+        break;
+      }
+    }
+
+    const loc = this.findLocation(locId);
+    if (!loc) return 'common';
+    const phaseDef = this.currentPhaseDef();
+    let mul = loc.lootRate * phaseDef.lootMul;
+
+    if (this.fortune?.effect === 'lootUp' && this.fortuneLocation === locId) {
+      mul *= 1 + this.cfg.fortuneEffects.lootUp;
+    }
+
+    if (this.catLuck > 0) {
+      mul *= 1 + this.cfg.catLuckMul;
+    }
+
+    if (this.mood < this.cfg.moodGoldLow.threshold) {
+      mul *= this.cfg.moodGoldLow.mul;
+    } else if (this.mood >= this.cfg.moodGoldHigh.threshold) {
+      mul *= this.cfg.moodGoldHigh.mul;
+    }
+
+    goodP *= mul;
+    rareP *= mul;
+    epicP *= mul;
+
+    if (boxSize === 'big') {
+      goodP += this.cfg.bigBoxBonusGood;
+    }
+
+    goodP = Math.min(1, Math.max(0, goodP));
+    rareP = Math.min(1, Math.max(0, rareP));
+    epicP = Math.min(1, Math.max(0, epicP));
+
+    const roll = this.rng.next();
+    if (roll < epicP) {
+      return 'epic';
+    } else if (roll < epicP + rareP) {
+      return 'rare';
+    } else if (roll < epicP + rareP + goodP) {
+      return 'good';
+    } else {
+      return 'common';
+    }
+  }
+
+  private pickItemByRarity(rarity: Rarity, locId: string): ItemDef {
+    const candidates = ITEMS.filter((item) => item.rarity === rarity);
+    if (candidates.length === 0) return ITEMS[0];
+
+    const weights = candidates.map((item) => {
+      return item.locations?.includes(locId) ? 3 : 1;
+    });
+
+    let totalWeight = 0;
+    for (const weight of weights) {
+      totalWeight += weight;
+    }
+
+    let roll = this.rng.next() * totalWeight;
+    for (let i = 0; i < candidates.length; i++) {
+      if (roll < weights[i]) {
+        return candidates[i];
+      }
+      roll -= weights[i];
+    }
+
+    return candidates[candidates.length - 1];
+  }
+
+  private makeQuip(items: ItemInst[]): string {
+    if (items.length === 0) return '';
+    const names = items.map((i) => this.findItemDef(i.itemId)?.name ?? '未知');
+    const joined = names.join('、');
+    return `掏出：${joined}，深圳欢迎你`;
+  }
+
+  private makeMishapQuip(): string {
+    const quips = [
+      '手一抖，掏出了一团糟糕',
+      '猫主子给了你一巴掌',
+      '今天的垃圾桶格外暴躁',
+      '你被垃圾教育了',
+    ];
+    return this.rng.pick(quips);
+  }
+
+  private tryTriggerEvent(locId: string): PendingEvent | undefined {
+    const available: EventDef[] = [];
+    const weights: number[] = [];
+
+    for (const ev of EVENTS) {
+      let weight = ev.weight;
+      let allowed = true;
+
+      if (ev.id === 'patrol') {
+        const loc = this.findLocation(locId);
+        if (loc) {
+          weight *= loc.danger;
+        }
+        weight *= 1 + this.currentPhaseDef().patrolBonus;
+        if (this.fortune?.effect === 'patrolX2' && this.fortuneLocation === locId) {
+          weight *= this.cfg.fortuneEffects.patrolX2;
+        }
+      }
+
+      if (ev.id === 'rival' && !this.currentPhaseDef().rivalEnabled) {
+        allowed = false;
+      }
+
+      if (ev.id === 'rain' && this.raining) {
+        allowed = false;
+      }
+
+      if (allowed && weight > 0) {
+        available.push(ev);
+        weights.push(weight);
+      }
+    }
+
+    if (available.length === 0) return undefined;
+
+    let totalWeight = 0;
+    for (const weight of weights) {
+      totalWeight += weight;
+    }
+
+    let roll = this.rng.next() * totalWeight;
+    for (let i = 0; i < available.length; i++) {
+      if (roll < weights[i]) {
+        const ev = available[i];
+        return { id: ev.id, name: ev.name, options: [...ev.options] };
+      }
+      roll -= weights[i];
+    }
+
+    return undefined;
+  }
+
+  private findEdibleUid(): number | null {
+    for (const item of this.floor) {
+      const def = this.findItemDef(item.itemId);
+      if (def?.edible) return item.uid;
+    }
+    for (const item of this.bag) {
+      const def = this.findItemDef(item.itemId);
+      if (def?.edible) return item.uid;
+    }
+    return null;
+  }
+
+  private rectsOverlap(
+    x1: number, y1: number, w1: number, h1: number,
+    x2: number, y2: number, w2: number, h2: number,
+  ): boolean {
+    return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
+  }
+
+  private clearFloor(text: string): void {
+    if (this.floor.length > 0) {
+      this.log.push(`${text}，${this.floor.length} 件物品消失`);
+      this.floor = [];
+    }
+  }
+
+  private sellBagAndReport(): void {
+    let income = 0;
+    const soldItems: string[] = [];
+    let bestItem: string | undefined;
+    let bestPrice = -Infinity;
+
+    for (const item of this.bag) {
+      const def = this.findItemDef(item.itemId);
+      if (!def) continue;
+
+      let price = def.price;
+      if (def.id === 'scratch_card') {
+        price = this.revealScratchValue();
+        item.scratchValue = price;
+      } else if (def.priceMax != null && def.priceMax > def.price) {
+        price = def.price;
+      }
+
+      income += price;
+      soldItems.push(def.name);
+
+      if (price > bestPrice) {
+        bestPrice = price;
+        bestItem = def.name;
+      }
+    }
+
+    this.money += income;
+    this.totalIncome += income;
+    this.bag = [];
+
+    const report: DayReport = {
+      day: this.day,
+      income,
+      soldItems,
+      bestItem,
+      hungerLeft: this.hunger,
+      quip: this.makeDayQuip(soldItems, income),
+    };
+
+    if (this.lastDayReport?.warmth) {
+      report.warmth = true;
+    }
+
+    this.lastDayReport = report;
+    this.log.push(`第 ${this.day} 天卖出：${soldItems.join('、') || '无'}，收入 ¥${income.toFixed(2)}`);
+  }
+
+  private revealScratchValue(): number {
+    const roll = this.rng.next() * 100;
+    if (roll < 60) {
+      return 0;
+    } else if (roll < 90) {
+      return this.rng.int(5, 20);
+    } else if (roll < 99) {
+      return this.rng.int(30, 80);
+    } else {
+      return 200;
+    }
+  }
+
+  private makeDayQuip(soldItems: string[], income: number): string {
+    if (soldItems.length === 0) {
+      return '今天一无所获，深圳的天空依旧灰蒙蒙';
+    }
+    const best = soldItems[soldItems.length - 1];
+    return `今日战绩：${best}，收入 ¥${income.toFixed(2)}，深圳欢迎你`;
+  }
+
+  private chooseSleepSpot(): SleepSpotDef {
+    let roll = this.rng.next();
+    for (const spot of SLEEP_SPOTS) {
+      if (roll < spot.prob) {
+        return spot;
+      }
+      roll -= spot.prob;
+    }
+    return SLEEP_SPOTS[0];
+  }
+
+  private makeDeathCause(): string {
+    const dayText = `第 ${this.day} 天`;
+    if (this.todayEdibleSeen.length > 0) {
+      const name = this.findItemDef(this.todayEdibleSeen[this.todayEdibleSeen.length - 1])?.name ?? '可吃的东西';
+      return `${dayText}，舍不得吃那块${name}，饿晕了`;
+    }
+    const causes = [
+      `${dayText}，在深圳的街头饿成了纸片人`,
+      `${dayText}，以为喝西北风能饱，结果风停了`,
+      `${dayText}，终于理解了什么叫“饿得前胸贴后背”`,
+      `${dayText}，塑料袋翻了个遍，只找到了孤独`,
+    ];
+    return this.rng.pick(causes);
+  }
+
+  private makeCollapseText(spotName: string, lostItems: string[]): string {
+    if (lostItems.length === 0) {
+      return `你在${spotName}睡着了，醒来还是身无分文，但至少没丢东西。`;
+    }
+    const names = lostItems.join('、');
+    return `你在${spotName}睡着了，醒来少了 ${lostItems.length} 样东西：${names}。`;
+  }
+
+  private findItemDef(id: string): ItemDef | undefined {
+    return ITEMS.find((item) => item.id === id);
+  }
+  private checkMidnight(): void {
+    if (this.phase === 'won' || this.phase === 'lost' || this.phase === 'collapsed' || this.phase === 'home') return;
+    if (this.location == null) return;
+    if (this.minute < this.cfg.midnightMinute) return;
+
+    if (this.stamina >= this.homeCost()) {
+      this.goHome();
+    } else {
+      this.collapse();
+    }
+  }
+
+}
+```

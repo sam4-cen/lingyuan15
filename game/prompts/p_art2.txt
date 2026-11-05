@@ -1,0 +1,396 @@
+按下面的约定重写 assets/scripts/ui/Art.ts 完整文件，从 './ArtMap' 导入 ART_ALIAS, ICON_MAP。Cocos Creator 3.8.8。
+# 美术素材接入约定（替换占位）
+目录（Cocos 工程内）：
+- assets/resources/art/<anim>/<i>.png 序列帧（i 从 0 开始）；单张图是 <name>/0.png。已有 anim：hero_idle(6) hero_walk(6) hero_dig(6) hero_fall_sleep(4) box_bag_shake(3,32px) box_bin_shake(3,48px) box_scrap_shake(3,48px) glow_white/blue/gold/rainbow(6,48px) fx_lidpop(5,48px) npc_patrol_uncle(4) npc_guard(4) npc_rival(4) npc_cat(4) npc_kind_auntie(4) npc_delivery_rider(3) npc_sanitation_auntie(3) npc_wallet_owner(3) fortune_cup(7,64x96，第0帧静止，1~6帧摇晃循环) fortune_slip(1,空白签面) card_daily card_fail card_cert(300x400) bar_frame_red/yellow(9宫格 inset 3/3/3/3) bar_frame_blue(inset 2/2/2/2) button_normal(inset L2 R2 T2 B4) button_pressed(inset L5 R5 T4 B5) panel_frame(inset L5 R3 T5 B5) inv_grid_*（5x5 整块面板，不使用；背包单格由代码 Graphics 画框）。
+- assets/resources/art/icons/<iconName>.png 16x16 物品图标。
+- 背景在 Asset Bundle「bg」（assets/bundles/bg，微信分包）：<name>.png，名字：loc_huaqiangbei loc_dongmen loc_baishizhou loc_futian_cbd loc_nanshan_tech loc_bg_compound loc_night_market loc_fastfood_back shelter_bed shelter_bed_up shelter_recycle sleep_park sleep_fastfood sleep_netcafe map_shenzhen(360x640)。用 assetManager.loadBundle('bg') 后 bundle.load(name+'/spriteFrame', SpriteFrame)；进入游戏后后台预加载，未加载完时用占位色块，加载完替换。
+- 不接入（继续代码占位）：fx_flashlight、fx_clash、物品弹出闪光 pop_flash、回收站升级版 home_2。
+
+## 逻辑名 → 素材名（写成 assets/scripts/ui/ArtMap.ts 导出 const ART_ALIAS: Record<string,{src:'res'|'bg', path:string, fps?:number, loopFrom?:number, insets?:[number,number,number,number]}> 以及 ICON_MAP: Record<itemId,string> 和 MAP_POINTS: Record<locationId,{x:number,y:number}>）
+hero_idle→hero_idle, hero_walk→hero_walk, hero_dig→hero_dig, hero_fall→hero_fall_sleep, box_small→box_bag_shake, box_big→box_bin_shake（大盒另一种外观 box_big_alt→box_scrap_shake，偶数编号盒子用 alt）, glow_*→glow_*, lid_pop→fx_lidpop, npc_patrol/ev_patrol→npc_patrol_uncle, npc_guard/ev_guard→npc_guard, npc_rival/ev_rival→npc_rival, npc_cat/ev_cat→npc_cat, npc_auntie/ev_auntie→npc_kind_auntie, npc_courier/ev_delivery→npc_delivery_rider, ev_wallet→npc_wallet_owner, npc_sanitation/ev_night_warmth→npc_sanitation_auntie, fortune_tube→fortune_cup(loopFrom 1), fortune_slip, card_day→card_daily, card_fail, card_cert, bar_hunger→bar_frame_yellow, bar_stamina→bar_frame_red, bar_mood→bar_frame_blue, button→button_normal, button_pressed, panel→panel_frame；
+bg_huaqiangbei/dongmen/baishizhou/futian_cbd/nanshan_tech→bg 同名 loc_*；bg_sz_bay、bg_window_world、bg_university_town 没有素材→占位；map→map_shenzhen；home_0→shelter_bed，home_1→shelter_recycle，home_2→占位；sleep_bench→sleep_park，sleep_diner→sleep_fastfood，sleep_netcafe→sleep_netcafe。
+ICON_MAP：empty_water_bottle→plastic_bottle, crushed_can→soda_can, cardboard_box→cardboard, left_slipper→left_slipper, broken_umbrella→umbrella, half_cup_milk_tea→milk_tea, cold_bun→buns, half_egg_tart→egg_tart, expired_bread→bread, charging_cable→charger_cable, energy_drink→tin_can, delivery_set_meal→rice_box, exam_materials→old_book, mechanical_keyboard→keyboard, old_phone→old_phone, scratch_card→scratch_card, dead_mouse→dead_mouse；其余物品没有图标→占位色块+名字首字。
+MAP_POINTS（地图 360x640 像素坐标，原点左上）：university_town 210,154；huaqiangbei 301,216；nanshan_tech 43,264；baishizhou 178,301；window_world 106,311；dongmen 329,357；futian_cbd 244,403；sz_bay 59,421。显示时地图按高度适配 1280（缩放 2x 即 720x1280），坐标换算成以节点中心为原点的 Cocos 坐标：cx=(x-180)*2, cy=(320-y)*2。
+
+## Art.ts 改动
+- preload()：resources.loadDir('art', SpriteFrame) 全部加载；所有 SpriteFrame 的 texture 设置 setFilters(Texture2D.Filter.NEAREST, Texture2D.Filter.NEAREST) 保证像素清晰；有 insets 的设置 spriteFrame.insetLeft/Right/Top/Bottom。然后后台 loadBundle('bg') 并加载所有背景。
+- frames(name)：先查 ART_ALIAS 解析到真实路径，再取帧（res 的 art/<path>/0..n 按数字排序；bg 单帧）；icon_<itemId> 走 ICON_MAP → art/icons/<iconName>。
+- makeVisual(name,w,h,color,label)：有帧→Sprite（sizeMode CUSTOM，宽高为 w,h；有 insets 时 type=SLICED）并按 fps(默认10) 播放，loopFrom 指定循环起点；无帧→保持原来的色块+文字占位。如果是 bg 且还没加载完，先占位，加载完自动替换成 Sprite。
+- 新增 static makeCard(kind:'card_day'|'card_fail'|'card_cert', parentH:number):Node：卡片按高度适配：高度 = parentH*0.7，宽 = 高*0.75，水平居中两边留空；底图为卡片素材，上面挂一个 content 子节点供写文字。
+- 新增 static makeButton(text, w, h, onClick):Node 用 button 九宫格（无素材时色块），按下切 button_pressed。
+- 新增 static drawCell(g:Graphics, x, y, size, state:'normal'|'hover'|'bad'|'filled')：代码画单个背包格（深色底+2px 浅色边框，hover 黄边，bad 红边）。
+- 新增 static missing():string[] 返回本次运行中被请求但没有素材、走了占位的逻辑名（去重），用于报告。
+保持原有公开方法签名兼容（preload/frames/makeVisual/play）。
+# 当前 Art.ts
+```ts
+import {
+  _decorator,
+  Component,
+  Node,
+  Label,
+  Graphics,
+  Color,
+  UITransform,
+  Sprite,
+  SpriteFrame,
+  resources,
+} from 'cc';
+import { ITEMS, LOCATIONS, EVENTS } from '../core/config';
+
+const { ccclass } = _decorator;
+
+const ART_ROOT = 'art';
+const DEFAULT_FPS = 10;
+
+/** 文件名自然排序（0.png, 1.png, ... 10.png 不会排到 2 前面） */
+function compareNames(a: string, b: string): number {
+  if (a === b) return 0;
+  const pa = a.replace(/\d+/g, '#');
+  const pb = b.replace(/\d+/g, '#');
+  if (pa !== pb) return pa < pb ? -1 : 1;
+  const na = a.match(/\d+/g);
+  const nb = b.match(/\d+/g);
+  if (na && nb && na.length > 0 && nb.length > 0) {
+    const len = Math.min(na.length, nb.length);
+    for (let i = 0; i < len; i++) {
+      const x = parseInt(na[i], 10);
+      const y = parseInt(nb[i], 10);
+      if (x !== y) return x - y;
+    }
+    if (na.length !== nb.length) return na.length - nb.length;
+  }
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * 挂在节点上的简易序列帧播放器。
+ * 约定：Art.makeVisual 创建带帧节点时会自动挂上；Art.play 也可以给占位节点动态补上。
+ */
+@ccclass('ArtSpritePlayer')
+export class ArtSpritePlayer extends Component {
+  private _frames: SpriteFrame[] = [];
+  private _fps: number = DEFAULT_FPS;
+  private _loop: boolean = true;
+  private _index: number = 0;
+  private _sprite: Sprite | null = null;
+
+  public setFrames(frames: SpriteFrame[], fps: number = DEFAULT_FPS, loop: boolean = true): void {
+    this._frames = frames && frames.length > 0 ? frames.slice() : [];
+    const f = Math.floor(fps);
+    this._fps = f > 0 ? f : DEFAULT_FPS;
+    this._loop = loop;
+    this._index = 0;
+    this.applyFrame();
+    this.restartSchedule();
+  }
+
+  public get frameCount(): number {
+    return this._frames.length;
+  }
+
+  protected onEnable(): void {
+    this.restartSchedule();
+  }
+
+  protected onDisable(): void {
+    this.unschedule(this.tick);
+  }
+
+  private ensureSprite(): Sprite | null {
+    if (!this._sprite || !this._sprite.isValid) {
+      this._sprite = this.getComponent(Sprite);
+    }
+    return this._sprite;
+  }
+
+  private applyFrame(): void {
+    const sp = this.ensureSprite();
+    if (!sp) return;
+    sp.spriteFrame = this._frames.length > 0 ? this._frames[Math.min(this._index, this._frames.length - 1)] : null;
+  }
+
+  private restartSchedule(): void {
+    this.unschedule(this.tick);
+    if (!this.node || !this.node.activeInHierarchy) return;
+    if (this._frames.length <= 1) return;
+    this.schedule(this.tick, 1 / this._fps);
+  }
+
+  private tick(): void {
+    if (this._frames.length <= 1) return;
+    this._index++;
+    if (this._index >= this._frames.length) {
+      if (this._loop) {
+        this._index = 0;
+      } else {
+        this._index = this._frames.length - 1;
+        this.unschedule(this.tick);
+        this.applyFrame();
+        return;
+      }
+    }
+    this.applyFrame();
+  }
+}
+
+/**
+ * 表现层素材工具。
+ * 所有 art 资源都是可选的：没有序列帧时一律退化成纯色块 + 文字占位。
+ */
+export class Art {
+  private static _preloaded: boolean = false;
+  private static _cache: Map<string, SpriteFrame[]> = new Map();
+  private static _names: string[] | null = null;
+
+  /** 预加载 resources/art 下所有 SpriteFrame。失败静默。 */
+  public static async preload(): Promise<void> {
+    if (Art._preloaded) return;
+    Art._preloaded = true;
+
+    let count = 0;
+    try {
+      count = await new Promise<number>((resolve) => {
+        try {
+          resources.loadDir(ART_ROOT, SpriteFrame, (err: Error | null, assets: SpriteFrame[]) => {
+            if (err || !assets) resolve(0);
+            else resolve(assets.length);
+          });
+        } catch (e) {
+          resolve(0);
+        }
+      });
+    } catch (e) {
+      count = 0;
+    }
+
+    try {
+      Art.collect();
+    } catch (e) {
+      // ignore
+    }
+
+    // 有资源但目录信息拿不到时，按约定名字逐个目录兜底加载
+    if (Art._cache.size === 0 && count > 0) {
+      try {
+        await Art.loadByNameList();
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+
+  /** 取 resources/art/<name>/ 下按文件名排序的序列帧；没有返回空数组。 */
+  public static frames(name: string): SpriteFrame[] {
+    if (!name) return [];
+    const list = Art._cache.get(name);
+    if (!list || list.length === 0) return [];
+    return list;
+  }
+
+  /**
+   * 通用可视占位：有序列帧 -> Sprite 自动循环播放；
+   * 否则 -> 纯色块 + 中文文字。
+   */
+  public static makeVisual(name: string, w: number, h: number, color: Color, label?: string): Node {
+    const width = Math.max(1, Math.round(w));
+    const height = Math.max(1, Math.round(h));
+    const node = new Node(name || 'visual');
+    const ut = node.addComponent(UITransform);
+    ut.setContentSize(width, height);
+
+    const frames = Art.frames(name);
+    if (frames.length > 0) {
+      const sp = node.addComponent(Sprite);
+      sp.sizeMode = Sprite.SizeMode.CUSTOM;
+      sp.type = Sprite.Type.SIMPLE;
+      const player = node.addComponent(ArtSpritePlayer);
+      player.setFrames(frames, DEFAULT_FPS, true);
+      return node;
+    }
+
+    const base = color ? color.clone() : new Color(200, 200, 200, 255);
+    const g = node.addComponent(Graphics);
+    g.fillColor = base;
+    g.rect(-width / 2, -height / 2, width, height);
+    g.fill();
+    g.lineWidth = Math.max(1, Math.round(Math.min(width, height) * 0.05));
+    g.strokeColor = new Color(0, 0, 0, 90);
+    g.stroke();
+
+    if (label != null && label !== '') {
+      const ln = new Node('ph_label');
+      const lut = ln.addComponent(UITransform);
+      lut.setContentSize(width, height);
+      const lb = ln.addComponent(Label);
+      lb.string = label;
+      const fs = Math.max(12, Math.min(30, Math.floor(Math.min(width, height) * 0.52)));
+      lb.fontSize = fs;
+      lb.lineHeight = fs + 4;
+      lb.horizontalAlign = Label.HorizontalAlign.CENTER;
+      lb.verticalAlign = Label.VerticalAlign.CENTER;
+      lb.overflow = Label.Overflow.SHRINK;
+      lb.enableWrapText = false;
+      const lum = 0.299 * base.r + 0.587 * base.g + 0.114 * base.b;
+      lb.color = lum > 150 ? new Color(25, 25, 28, 255) : new Color(248, 248, 248, 255);
+      ln.setParent(node);
+      ln.setPosition(0, 0, 0);
+    }
+
+    return node;
+  }
+
+  /** 切换节点的序列帧播放；目标名字没有帧时 no-op。 */
+  public static play(node: Node, name: string, fps: number = DEFAULT_FPS, loop: boolean = true): void {
+    if (!node || !node.isValid) return;
+    const frames = Art.frames(name);
+    if (frames.length === 0) return;
+
+    let player = node.getComponent(ArtSpritePlayer);
+    if (!player) {
+      // 把占位色块节点升级成序列帧节点
+      const g = node.getComponent(Graphics);
+      if (g) g.enabled = false;
+      const label = node.getChildByName('ph_label');
+      if (label) label.active = false;
+      let sp = node.getComponent(Sprite);
+      if (!sp) {
+        sp = node.addComponent(Sprite);
+        sp.sizeMode = Sprite.SizeMode.CUSTOM;
+        sp.type = Sprite.Type.SIMPLE;
+      }
+      player = node.addComponent(ArtSpritePlayer);
+    }
+    player.setFrames(frames, fps, loop);
+  }
+
+  // ------------------------------------------------------------------
+  // 内部：把已加载的 SpriteFrame 按目录归类
+  // ------------------------------------------------------------------
+
+  private static collect(): void {
+    const buckets: Map<string, { key: string; sf: SpriteFrame }[]> = new Map();
+    let infos: any[] = [];
+    try {
+      const got = (resources as any).getDirWithPath(ART_ROOT, SpriteFrame) as any[];
+      if (got && got.length > 0) infos = got;
+    } catch (e) {
+      infos = [];
+    }
+
+    for (let i = 0; i < infos.length; i++) {
+      const info: any = infos[i];
+      if (!info) continue;
+      const rawPath: string = info.path || info.url || '';
+      if (!rawPath) continue;
+
+      const segs = rawPath.split('/');
+      let parts = segs;
+      const tail = parts[parts.length - 1];
+      if (tail === 'spriteFrame' || tail === 'texture') {
+        parts = parts.slice(0, parts.length - 1);
+      }
+
+      let name = '';
+      let file = '';
+      if (parts.length >= 3) {
+        name = parts[parts.length - 2];
+        file = parts[parts.length - 1];
+      } else if (parts.length === 2) {
+        name = parts[1];
+        file = parts[1];
+      } else {
+        continue;
+      }
+      if (!name) continue;
+
+      let sf: SpriteFrame | null = null;
+      try {
+        sf = resources.get(rawPath, SpriteFrame) as SpriteFrame | null;
+      } catch (e) {
+        sf = null;
+      }
+      if (!sf) {
+        const alt = parts.join('/');
+        if (alt !== rawPath) {
+          try {
+            sf = resources.get(alt, SpriteFrame) as SpriteFrame | null;
+          } catch (e) {
+            sf = null;
+          }
+        }
+      }
+      if (!sf) continue;
+
+      let arr = buckets.get(name);
+      if (!arr) {
+        arr = [];
+        buckets.set(name, arr);
+      }
+      arr.push({ key: file, sf });
+    }
+
+    buckets.forEach((arr: { key: string; sf: SpriteFrame }[], name: string) => {
+      arr.sort((a, b) => compareNames(a.key, b.key));
+      const frames: SpriteFrame[] = [];
+      for (let i = 0; i < arr.length; i++) frames.push(arr[i].sf);
+      if (frames.length > 0) Art._cache.set(name, frames);
+    });
+  }
+
+  private static loadByNameList(): Promise<void> {
+    const names = Art.knownNames();
+    const batch = 16;
+    const run = async (): Promise<void> => {
+      for (let i = 0; i < names.length; i += batch) {
+        const group = names.slice(i, i + batch);
+        await Promise.all(
+          group.map(
+            (n) =>
+              new Promise<void>((resolve) => {
+                if (Art._cache.has(n)) {
+                  resolve();
+                  return;
+                }
+                try {
+                  resources.loadDir(`${ART_ROOT}/${n}`, SpriteFrame, (err: Error | null, assets: SpriteFrame[]) => {
+                    if (!err && assets && assets.length > 0) {
+                      const frames = assets.slice();
+                      frames.sort((a, b) => compareNames(a.name, b.name));
+                      Art._cache.set(n, frames);
+                    }
+                    resolve();
+                  });
+                } catch (e) {
+                  resolve();
+                }
+              }),
+          ),
+        );
+      }
+    };
+    return run();
+  }
+
+  private static knownNames(): string[] {
+    if (Art._names) return Art._names;
+    const names: string[] = [
+      'hero_idle', 'hero_walk', 'hero_dig', 'hero_fall',
+      'box_small', 'box_big',
+      'glow_white', 'glow_blue', 'glow_gold', 'glow_rainbow',
+      'pop_flash', 'map',
+      'home_0', 'home_1', 'home_2',
+      'sleep_bench', 'sleep_diner', 'sleep_netcafe',
+      'npc_patrol', 'npc_guard', 'npc_auntie', 'npc_rival', 'npc_cat', 'npc_courier',
+      'fortune_tube', 'card_day', 'card_fail', 'card_cert',
+    ];
+    try {
+      for (let i = 0; i < ITEMS.length; i++) names.push('icon_' + ITEMS[i].id);
+      for (let i = 0; i < LOCATIONS.length; i++) names.push('bg_' + LOCATIONS[i].id);
+      for (let i = 0; i < EVENTS.length; i++) names.push('ev_' + EVENTS[i].id);
+    } catch (e) {
+      // ignore
+    }
+    Art._names = names;
+    return names;
+  }
+}```

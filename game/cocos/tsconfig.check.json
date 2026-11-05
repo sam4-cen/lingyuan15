@@ -1,0 +1,2 @@
+{"compilerOptions":{"target":"es2017","module":"esnext","moduleResolution":"bundler","strict":true,"experimentalDecorators":true,"noEmit":true,"skipLibCheck":true,"lib":["es2017","dom"],"types":[]},
+ "files":["../node_modules/@cocos/creator-types/engine/cc.d.ts","types/wx.d.ts"],"include":["assets/scripts/**/*.ts"]}

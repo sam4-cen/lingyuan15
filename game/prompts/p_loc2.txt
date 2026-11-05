@@ -1,0 +1,3805 @@
+按新的美术约定修改 LocationView.ts 并输出完整文件：背包格改为 Art.drawCell 代码画框（拖拽悬停 hover、放不下 bad 闪红）；盒子用 box_small / box_big（偶数编号用 box_big_alt）序列帧，按住时播抖动帧；松手大盒播 lid_pop；主角 hero_dig 序列帧；物品图标 icon_<itemId>；背景 bg_<locationId>（按高度适配）；按钮用 Art.makeButton；物品弹出闪光 pop_flash 继续用代码占位。其余逻辑不变。
+# Cocos Creator 3.8.8 表现层约定（竖屏 720x1280 设计分辨率，微信小游戏）
+- 逻辑全部在 assets/scripts/core/game.ts 和 config.ts（与上文相同），表现层只调用 Game 的公开方法、读取公开字段，不改规则。
+- 只用 'cc' 模块：_decorator, Component, Node, Label, Graphics, Color, UITransform, Vec3, tween, Tween, Sprite, SpriteFrame, SpriteAtlas, resources, Animation, input, Input, EventTouch, UIOpacity, view, director, sys, Widget。不要用 prefab 和场景里预先摆的节点：所有节点在代码里 new Node() 创建（父节点为挂脚本的 Canvas 节点），这样只需要一个空场景 + Canvas 挂 GameRoot 即可运行。
+- 占位素材：纯色块用 Graphics 画（rect+fill），文字用 Label（fontSize 24~40，中文）。
+- 文件与职责：
+  1. assets/scripts/ui/Art.ts：export class Art。static async preload()：尝试 resources.loadDir('art', SpriteFrame) 加载，失败不报错。static frames(name:string):SpriteFrame[] 返回 resources/art/<name>/ 下按文件名排序的序列帧（如 hero_dig/0.png..5.png），没有则空数组。static makeVisual(name:string, w:number, h:number, color:Color, label?:string):Node —— 有序列帧就建 Sprite 节点并用 schedule 按 fps=10 循环播（返回节点上 setFrames 播放），没有就建纯色块+文字占位。static play(node, name, fps, loop) 切换序列帧（无帧时 no-op）。约定的名字：hero_idle, hero_walk, hero_dig, hero_fall, box_small, box_big, glow_white, glow_blue, glow_gold, glow_rainbow, pop_flash, icon_<itemId>, bg_<locationId>, map, home_0..2, sleep_bench/diner/netcafe, npc_patrol/guard/auntie/rival/cat/courier, fortune_tube, card_day/card_fail/card_cert, ev_<eventId>。
+  2. assets/scripts/ui/Fx.ts：export class Fx 纯代码缓动工具：shake(node, strength, duration)、screenShake(root)、pulse(node)、popArc(node, from:Vec3, to:Vec3, duration)（抛物线）、freeze(seconds):Promise、flash(root, color)、edgeGlow(root, color, on:boolean)、fadeIn/fadeOut、dimOverlay(root):Node、floatText(root, text, pos, color)、barTo(barNode, ratio)、vibrateShort()（调用 wx.vibrateShort，若 globalThis.wx 不存在则跳过）、rainOverlay(root):Node（像素雨，用 Graphics 画短线并循环下移）、confetti(root)。返回 Promise 的都用 tween().call(resolve)。
+  3. assets/scripts/ui/LocationView.ts：export class LocationView，构造参数 (root:Node, game:Game, onChanged:()=>void, onEvent:(ev)=>void, onLeave:()=>void)；show()/hide()。显示：地点背景占位、盒子列表（小盒 32x32 比例放大到 96、大盒 144，未开的才可按）、HUD 由 GameRoot 画。长按交互：TOUCH_START 记录时间；按住每帧 update 计算秒数 → 0~1 秒盒子左右抖+碎纸片小方块飞出+首次 Fx.vibrateShort；1~3 秒抖动加剧，盒子上方 glow 色块颜色 = game.glowFor(秒, boxId)（white/blue/gold/rainbow），gold/rainbow 时 Fx.edgeGlow；底部进度条（0~maxHoldSec）和「剩余体力 X / 本次将扣 Y」；TOUCH_END/CANCEL 时调用 game.dig(boxId, 秒)：小盒走短版（鼓一下、撕开、≤1 秒）；大盒「嘭」盖弹开；result.mishap 时窜出猫色块或绿烟 + Fx.screenShake；物品依次 popArc 飞入待选区（floor 区，屏幕中部一排），稀有/史诗 freeze 0.3 秒 + flash + screenShake + 显示 quip 字幕；result.event 则调用 onEvent；result.collapsed 则 onChanged()。背包区：屏幕下部画 game.bagW x game.bagH 格子（每格 80px）。拖拽：从待选区按住物品拖到背包格上，松手时根据落点计算格坐标调用 game.placeFromFloor(uid,x,y,rotated)，成功则吸附到格子并播放「咔」（floatText），失败则格子闪红、物品 tween 回原位。双击/点击待选区物品弹出小菜单：吃掉(可吃时)/扔掉/旋转(2格)。点击背包里的物品：拿出(moveToFloor)/吃掉。按钮：「换地点」(game.leaveLocation 后 onLeave，提示地上没装的会丢)、「回家」(显示回家需 X 体力)。每次状态变化后调用 onChanged()。
+  4. assets/scripts/ui/EventView.ts：export class EventView，show(root, game, ev:PendingEvent, done:()=>void)。统一节奏：Fx.dimOverlay → 像素小剧场 1~2 秒（用色块+文字表现，按名字 ev_<id> 有序列帧就用）→ 出选项按钮（ev.options）→ 调 game.resolveEvent(i, minigameWin) → 结果小动画 → done()，全程 ≤4 秒（不含玩家思考）。九种：patrol 手电光扫过（黄色三角色块从左扫到右）主角一僵（停止抖动）；礼貌离开=主角色块鞠躬（缩放y）后小碎步左移淡出；装散步=左右踱步，成功大叔挥手走（色块移出），失败大叔笑脸文字「这边请~」。guard 闸门色块从上落下「咔」。rival 两个色块对视 + 「VS」闪烁，选比赛则进入 3 秒狂点小游戏（统计点击次数 >= 15 判赢），赢=对方耸肩离开，输=主角压扁坐地。auntie 画面转暖黄 overlay，饭盒色块+热气，主角星星眼文字「★_★」，饱腹条上涨。delivery 电动车色块从右刹停（tween 快速进入后抖一下）丢袋走，字幕「这单算你的」。wallet 钱包闪光，只有「归还」一个按钮，失主鞠躬，掉「¥20」和「♥」floatText。cat 小猫从盒子后探头；喂=之后在主角脚边显示小猫色块+头顶「☆」（GameRoot 根据 game.catLuck>0 显示）；不喂=「喵」走掉。rain 由 Fx.rainOverlay 全屏雨 + 主角头顶塑料袋色块，持续到当天结束（GameRoot 根据 game.raining 维护）。夜间温情 night_warmth：export function playNightWarmth(root):Promise —— 暖色 overlay + 环卫阿姨塞包子 + 文字。
+  5. assets/scripts/GameRoot.ts：@ccclass('GameRoot') export class GameRoot extends Component，挂在 Canvas 上。start() 中 await Art.preload()，new Game(Date.now()%1e9) .startGame()。常驻 HUD（顶部）：第X天、时钟 HH:MM、饱腹/体力/心情三条进度条（Fx.barTo）、金钱、「回家需 X 体力」（game.homeCost()，在家时隐藏）、签名。屏幕：加载页（「本游戏纯属虚构，现实请勿模仿」1.5 秒）→ fortune（签筒摇晃→签面文字、tier 颜色，按钮「就它了」acceptFortune、「重抽 ¥X」rerollFortune 钱不够置灰；adsEnabled=false 不显示任何广告按钮）→ map（8 个地点按钮，显示名称、移动体力 travelCost、今日剩余盒子数、签指定地点高亮、被 banned 灰叉；按钮「回家」「收工」(endDayAway)）→ travel 后进 LocationView → home（自动卖货后显示日结算卡：今日最离谱收获、收入、饱腹余量、吐槽；商店三按钮：买吃的 ¥8、扩背包 ¥40/¥90、升级落脚点；「睡觉」→ 若触发温情播 playNightWarmth → sleep()）→ collapsed（倒霉卡：spotName、丢了哪些、第二天体力，按钮「醒来」wakeUp）→ lost（失败卡「你在深圳活了 X 天」+ deathCause + 最离谱收获 + 「再来一局」+「分享」（分享仅调用 wx.shareAppMessage，没有任何奖励））→ won（「深圳生存成功」证书 + 编号（随机6位）+ 日期 + confetti）。phase 变化统一由 refresh() 根据 game.phase 切换。排行榜留 TODO 接口。
+# 美术素材接入约定（替换占位）
+目录（Cocos 工程内）：
+- assets/resources/art/<anim>/<i>.png 序列帧（i 从 0 开始）；单张图是 <name>/0.png。已有 anim：hero_idle(6) hero_walk(6) hero_dig(6) hero_fall_sleep(4) box_bag_shake(3,32px) box_bin_shake(3,48px) box_scrap_shake(3,48px) glow_white/blue/gold/rainbow(6,48px) fx_lidpop(5,48px) npc_patrol_uncle(4) npc_guard(4) npc_rival(4) npc_cat(4) npc_kind_auntie(4) npc_delivery_rider(3) npc_sanitation_auntie(3) npc_wallet_owner(3) fortune_cup(7,64x96，第0帧静止，1~6帧摇晃循环) fortune_slip(1,空白签面) card_daily card_fail card_cert(300x400) bar_frame_red/yellow(9宫格 inset 3/3/3/3) bar_frame_blue(inset 2/2/2/2) button_normal(inset L2 R2 T2 B4) button_pressed(inset L5 R5 T4 B5) panel_frame(inset L5 R3 T5 B5) inv_grid_*（5x5 整块面板，不使用；背包单格由代码 Graphics 画框）。
+- assets/resources/art/icons/<iconName>.png 16x16 物品图标。
+- 背景在 Asset Bundle「bg」（assets/bundles/bg，微信分包）：<name>.png，名字：loc_huaqiangbei loc_dongmen loc_baishizhou loc_futian_cbd loc_nanshan_tech loc_bg_compound loc_night_market loc_fastfood_back shelter_bed shelter_bed_up shelter_recycle sleep_park sleep_fastfood sleep_netcafe map_shenzhen(360x640)。用 assetManager.loadBundle('bg') 后 bundle.load(name+'/spriteFrame', SpriteFrame)；进入游戏后后台预加载，未加载完时用占位色块，加载完替换。
+- 不接入（继续代码占位）：fx_flashlight、fx_clash、物品弹出闪光 pop_flash、回收站升级版 home_2。
+
+## 逻辑名 → 素材名（写成 assets/scripts/ui/ArtMap.ts 导出 const ART_ALIAS: Record<string,{src:'res'|'bg', path:string, fps?:number, loopFrom?:number, insets?:[number,number,number,number]}> 以及 ICON_MAP: Record<itemId,string> 和 MAP_POINTS: Record<locationId,{x:number,y:number}>）
+hero_idle→hero_idle, hero_walk→hero_walk, hero_dig→hero_dig, hero_fall→hero_fall_sleep, box_small→box_bag_shake, box_big→box_bin_shake（大盒另一种外观 box_big_alt→box_scrap_shake，偶数编号盒子用 alt）, glow_*→glow_*, lid_pop→fx_lidpop, npc_patrol/ev_patrol→npc_patrol_uncle, npc_guard/ev_guard→npc_guard, npc_rival/ev_rival→npc_rival, npc_cat/ev_cat→npc_cat, npc_auntie/ev_auntie→npc_kind_auntie, npc_courier/ev_delivery→npc_delivery_rider, ev_wallet→npc_wallet_owner, npc_sanitation/ev_night_warmth→npc_sanitation_auntie, fortune_tube→fortune_cup(loopFrom 1), fortune_slip, card_day→card_daily, card_fail, card_cert, bar_hunger→bar_frame_yellow, bar_stamina→bar_frame_red, bar_mood→bar_frame_blue, button→button_normal, button_pressed, panel→panel_frame；
+bg_huaqiangbei/dongmen/baishizhou/futian_cbd/nanshan_tech→bg 同名 loc_*；bg_sz_bay、bg_window_world、bg_university_town 没有素材→占位；map→map_shenzhen；home_0→shelter_bed，home_1→shelter_recycle，home_2→占位；sleep_bench→sleep_park，sleep_diner→sleep_fastfood，sleep_netcafe→sleep_netcafe。
+ICON_MAP：empty_water_bottle→plastic_bottle, crushed_can→soda_can, cardboard_box→cardboard, left_slipper→left_slipper, broken_umbrella→umbrella, half_cup_milk_tea→milk_tea, cold_bun→buns, half_egg_tart→egg_tart, expired_bread→bread, charging_cable→charger_cable, energy_drink→tin_can, delivery_set_meal→rice_box, exam_materials→old_book, mechanical_keyboard→keyboard, old_phone→old_phone, scratch_card→scratch_card, dead_mouse→dead_mouse；其余物品没有图标→占位色块+名字首字。
+MAP_POINTS（地图 360x640 像素坐标，原点左上）：university_town 210,154；huaqiangbei 301,216；nanshan_tech 43,264；baishizhou 178,301；window_world 106,311；dongmen 329,357；futian_cbd 244,403；sz_bay 59,421。显示时地图按高度适配 1280（缩放 2x 即 720x1280），坐标换算成以节点中心为原点的 Cocos 坐标：cx=(x-180)*2, cy=(320-y)*2。
+
+## Art.ts 改动
+- preload()：resources.loadDir('art', SpriteFrame) 全部加载；所有 SpriteFrame 的 texture 设置 setFilters(Texture2D.Filter.NEAREST, Texture2D.Filter.NEAREST) 保证像素清晰；有 insets 的设置 spriteFrame.insetLeft/Right/Top/Bottom。然后后台 loadBundle('bg') 并加载所有背景。
+- frames(name)：先查 ART_ALIAS 解析到真实路径，再取帧（res 的 art/<path>/0..n 按数字排序；bg 单帧）；icon_<itemId> 走 ICON_MAP → art/icons/<iconName>。
+- makeVisual(name,w,h,color,label)：有帧→Sprite（sizeMode CUSTOM，宽高为 w,h；有 insets 时 type=SLICED）并按 fps(默认10) 播放，loopFrom 指定循环起点；无帧→保持原来的色块+文字占位。如果是 bg 且还没加载完，先占位，加载完自动替换成 Sprite。
+- 新增 static makeCard(kind:'card_day'|'card_fail'|'card_cert', parentH:number):Node：卡片按高度适配：高度 = parentH*0.7，宽 = 高*0.75，水平居中两边留空；底图为卡片素材，上面挂一个 content 子节点供写文字。
+- 新增 static makeButton(text, w, h, onClick):Node 用 button 九宫格（无素材时色块），按下切 button_pressed。
+- 新增 static drawCell(g:Graphics, x, y, size, state:'normal'|'hover'|'bad'|'filled')：代码画单个背包格（深色底+2px 浅色边框，hover 黄边，bad 红边）。
+- 新增 static missing():string[] 返回本次运行中被请求但没有素材、走了占位的逻辑名（去重），用于报告。
+保持原有公开方法签名兼容（preload/frames/makeVisual/play）。
+
+# game.ts
+```ts
+import {
+  CONFIG,
+  ITEMS,
+  LOCATIONS,
+  FORTUNES,
+  EVENTS,
+  SLEEP_SPOTS,
+  Rarity,
+  BoxSize,
+  FortuneTier,
+  ItemDef,
+  LocationDef,
+  FortuneDef,
+  EventDef,
+  SleepSpotDef,
+  Config,
+  PhaseDef,
+} from './config';
+
+export type Phase = 'fortune' | 'map' | 'location' | 'event' | 'home' | 'collapsed' | 'won' | 'lost';
+
+export interface Box {
+  id: string;
+  size: BoxSize;
+  opened: boolean;
+}
+
+export interface ItemInst {
+  uid: number;
+  itemId: string;
+  scratchValue?: number;
+}
+
+export interface Placed {
+  uid: number;
+  itemId: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  scratchValue?: number;
+}
+
+export interface DigResult {
+  ok: boolean;
+  reason?: string;
+  items: ItemInst[];
+  mishap: boolean;
+  glow: 'white' | 'blue' | 'gold' | 'rainbow';
+  staminaCost: number;
+  quip: string;
+  event?: PendingEvent;
+  collapsed?: boolean;
+}
+
+export interface PendingEvent {
+  id: EventDef['id'];
+  name: string;
+  options: string[];
+}
+
+export interface DayReport {
+  day: number;
+  income: number;
+  soldItems: string[];
+  bestItem?: string;
+  hungerLeft: number;
+  quip: string;
+  warmth?: boolean;
+}
+
+export interface CollapseReport {
+  day: number;
+  spot: SleepSpotDef['id'];
+  spotName: string;
+  lostItems: string[];
+  staminaNextDay: number;
+  text: string;
+}
+
+export class Rng {
+  private state: number;
+
+  constructor(seed: number) {
+    this.state = seed >>> 0;
+  }
+
+  next(): number {
+    let t = (this.state += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+
+  int(a: number, b: number): number {
+    const min = Math.ceil(a);
+    const max = Math.floor(b);
+    if (min > max) return min;
+    return Math.floor(this.next() * (max - min + 1)) + min;
+  }
+
+  pick<T>(arr: T[]): T {
+    if (arr.length === 0) throw new Error('pick from empty array');
+    return arr[Math.floor(this.next() * arr.length)];
+  }
+
+  chance(p: number): boolean {
+    return this.next() < p;
+  }
+}
+
+export class Game {
+  private readonly cfg: Config;
+  private rng: Rng;
+
+  public day: number;
+  public minute: number;
+  public hunger: number;
+  public stamina: number;
+  public mood: number;
+  public money: number;
+  public phase: Phase;
+  public location: string | null;
+  public fortune: FortuneDef | null;
+  public fortuneLocation: string | null;
+  public rerollCount: number;
+  public bagLevel: number;
+  public homeLevel: number;
+  public bag: Placed[];
+  public floor: ItemInst[];
+  public bannedToday: string[];
+  public raining: boolean;
+  public catLuck: number;
+  public deathCause: string;
+  public totalIncome: number;
+  public log: string[];
+  public lastDayReport: DayReport | null;
+  public lastCollapse: CollapseReport | null;
+  public history: { day: number; money: number; hunger: number; stamina: number }[];
+
+  private boxes: Map<string, Box[]>;
+  private nextUid: number;
+  private pendingEvent: PendingEvent | null;
+  private dayHasGoodOrAbove: boolean;
+  private fortuneGuaranteeUsed: boolean;
+  private todayEdibleSeen: string[];
+
+  constructor(seed: number, cfg: Config = CONFIG) {
+    this.cfg = cfg;
+    this.rng = new Rng(seed);
+
+    this.day = 1;
+    this.minute = cfg.dayStartMinute;
+    this.hunger = cfg.startHunger;
+    this.stamina = cfg.startStamina;
+    this.mood = cfg.startMood;
+    this.money = cfg.startMoney;
+    this.phase = 'fortune';
+    this.location = null;
+    this.fortune = null;
+    this.fortuneLocation = null;
+    this.rerollCount = 0;
+    this.bagLevel = 0;
+    this.homeLevel = 0;
+    this.bag = [];
+    this.floor = [];
+    this.bannedToday = [];
+    this.raining = false;
+    this.catLuck = 0;
+    this.deathCause = '';
+    this.totalIncome = 0;
+    this.log = [];
+    this.lastDayReport = null;
+    this.lastCollapse = null;
+    this.history = [];
+    this.boxes = new Map();
+    this.nextUid = 1;
+    this.pendingEvent = null;
+    this.dayHasGoodOrAbove = false;
+    this.fortuneGuaranteeUsed = false;
+    this.todayEdibleSeen = [];
+  }
+
+  get bagW(): number {
+    return this.cfg.bagSizes[this.bagLevel].w;
+  }
+
+  get bagH(): number {
+    return this.cfg.bagSizes[this.bagLevel].h;
+  }
+
+  get maxStamina(): number {
+    return this.cfg.maxStamina + this.cfg.homeLevels[this.homeLevel].staminaBonus;
+  }
+
+  get dailyHunger(): number {
+    return this.currentPhaseDef().dailyHunger;
+  }
+
+  startGame(): void {
+    this.day = 1;
+    this.minute = this.cfg.dayStartMinute;
+    this.hunger = this.cfg.startHunger;
+    this.stamina = this.cfg.startStamina;
+    this.mood = this.cfg.startMood;
+    this.money = this.cfg.startMoney;
+    this.phase = 'fortune';
+    this.location = null;
+    this.fortune = null;
+    this.fortuneLocation = null;
+    this.rerollCount = 0;
+    this.bagLevel = 0;
+    this.homeLevel = 0;
+    this.bag = [];
+    this.floor = [];
+    this.bannedToday = [];
+    this.raining = false;
+    this.catLuck = 0;
+    this.deathCause = '';
+    this.totalIncome = 0;
+    this.log = [];
+    this.lastDayReport = null;
+    this.lastCollapse = null;
+    this.history = [];
+    this.boxes = new Map();
+    this.nextUid = 1;
+    this.pendingEvent = null;
+    this.dayHasGoodOrAbove = false;
+    this.fortuneGuaranteeUsed = false;
+    this.todayEdibleSeen = [];
+    this.drawFortune();
+    this.phase = 'fortune';
+  }
+
+  drawFortune(): void {
+    this.drawFortuneInternal();
+  }
+
+  rerollCost(): number {
+    return this.cfg.rerollBase + this.cfg.rerollStep * this.rerollCount;
+  }
+
+  rerollFortune(): boolean {
+    if (this.phase !== 'fortune') return false;
+    const cost = this.rerollCost();
+    if (this.money < cost) return false;
+    this.money -= cost;
+    this.rerollCount++;
+    this.drawFortune();
+    return true;
+  }
+
+  acceptFortune(): void {
+    if (this.phase !== 'fortune' || !this.fortune) return;
+    const tier = this.fortune.tier;
+    const delta = this.cfg.boxCountFortuneDelta[tier];
+    const minBase = this.cfg.boxesPerLocation[0];
+    const maxBase = this.cfg.boxesPerLocation[1];
+
+    this.boxes = new Map();
+    for (const loc of LOCATIONS) {
+      let count = this.rng.int(minBase + delta[0], maxBase + delta[1]);
+      count = Math.max(1, count);
+      const boxes: Box[] = [];
+      for (let i = 0; i < count; i++) {
+        const size: BoxSize = this.rng.chance(this.cfg.bigBoxChance[tier]) ? 'big' : 'small';
+        boxes.push({ id: `box_${loc.id}_${i}`, size, opened: false });
+      }
+      this.boxes.set(loc.id, boxes);
+    }
+    this.phase = 'map';
+    this.bannedToday = [];
+  }
+
+  boxesAt(locId: string): Box[] {
+    return this.boxes.get(locId) ?? [];
+  }
+
+  travelCost(locId: string): number {
+    const loc = this.findLocation(locId);
+    if (!loc) return this.cfg.maxStamina * 10;
+    let cost: number;
+    if (this.location == null) {
+      cost = loc.distance;
+    } else {
+      const curLoc = this.findLocation(this.location);
+      if (!curLoc) cost = loc.distance;
+      else cost = Math.abs(curLoc.distance - loc.distance) + 5;
+    }
+    cost = Math.max(5, cost);
+
+    const phaseDef = this.currentPhaseDef();
+    if (loc.far && phaseDef.farTravelMul !== 1) {
+      cost = Math.floor(cost * phaseDef.farTravelMul);
+    }
+    if (this.fortune?.effect === 'windy') {
+      cost += this.cfg.fortuneEffects.windy;
+    }
+    if (this.raining) {
+      cost += this.cfg.rainTravelExtra;
+    }
+    return Math.max(5, cost);
+  }
+
+  homeCost(): number {
+    if (this.location == null) return 0;
+    const loc = this.findLocation(this.location);
+    if (!loc) return 0;
+    let cost = loc.distance;
+    const phaseDef = this.currentPhaseDef();
+    if (loc.far && phaseDef.farTravelMul !== 1) {
+      cost = Math.floor(cost * phaseDef.farTravelMul);
+    }
+    if (this.fortune?.effect === 'windy') {
+      cost += this.cfg.fortuneEffects.windy;
+    }
+    if (this.raining) {
+      cost += this.cfg.rainTravelExtra;
+    }
+    return Math.max(5, cost);
+  }
+
+  travel(locId: string): boolean {
+    if (this.phase !== 'map' && this.phase !== 'location') return false;
+    if (this.bannedToday.includes(locId)) return false;
+    const loc = this.findLocation(locId);
+    if (!loc) return false;
+
+    const cost = this.travelCost(locId);
+    this.stamina -= cost;
+    this.minute += this.cfg.travelMinutes;
+    this.location = locId;
+    this.phase = 'location';
+
+    if (this.stamina <= 0) {
+      this.collapse();
+      return true;
+    }
+
+    this.checkMidnight();
+    return true;
+  }
+
+  goldChance(holdSec: number, boxId: string): number {
+    const box = this.findBox(boxId);
+    if (!box || !this.location) return 0;
+    const clampHold = Math.min(Math.max(0, holdSec), this.cfg.maxHoldSec);
+    let goodP = 0;
+    let rareP = 0;
+    let epicP = 0;
+    for (const step of this.cfg.holdCurve) {
+      if (step.minSec <= clampHold) {
+        goodP = step.good;
+        rareP = step.rare;
+        epicP = step.epic;
+      } else break;
+    }
+
+    const locId = this.location;
+    const loc = this.findLocation(locId);
+    if (!loc) return 0;
+    const phaseDef = this.currentPhaseDef();
+    let mul = loc.lootRate * phaseDef.lootMul;
+    if (this.fortune?.effect === 'lootUp' && this.fortuneLocation === locId) {
+      mul *= 1 + this.cfg.fortuneEffects.lootUp;
+    }
+    if (this.catLuck > 0) {
+      mul *= 1 + this.cfg.catLuckMul;
+    }
+    if (this.mood < this.cfg.moodGoldLow.threshold) {
+      mul *= this.cfg.moodGoldLow.mul;
+    } else if (this.mood >= this.cfg.moodGoldHigh.threshold) {
+      mul *= this.cfg.moodGoldHigh.mul;
+    }
+
+    rareP *= mul;
+    epicP *= mul;
+    rareP = Math.min(1, Math.max(0, rareP));
+    epicP = Math.min(1, Math.max(0, epicP));
+    return Math.min(1, rareP + epicP);
+  }
+
+  glowFor(holdSec: number, boxId: string): 'white' | 'blue' | 'gold' | 'rainbow' {
+    const box = this.findBox(boxId);
+    if (!box || !this.location) return 'white';
+    const clampHold = Math.min(Math.max(0, holdSec), this.cfg.maxHoldSec);
+    let goodP = 0;
+    let rareP = 0;
+    let epicP = 0;
+    for (const step of this.cfg.holdCurve) {
+      if (step.minSec <= clampHold) {
+        goodP = step.good;
+        rareP = step.rare;
+        epicP = step.epic;
+      } else break;
+    }
+
+    const locId = this.location;
+    const loc = this.findLocation(locId);
+    if (!loc) return 'white';
+    const phaseDef = this.currentPhaseDef();
+    let mul = loc.lootRate * phaseDef.lootMul;
+    if (this.fortune?.effect === 'lootUp' && this.fortuneLocation === locId) {
+      mul *= 1 + this.cfg.fortuneEffects.lootUp;
+    }
+    if (this.catLuck > 0) {
+      mul *= 1 + this.cfg.catLuckMul;
+    }
+    if (this.mood < this.cfg.moodGoldLow.threshold) {
+      mul *= this.cfg.moodGoldLow.mul;
+    } else if (this.mood >= this.cfg.moodGoldHigh.threshold) {
+      mul *= this.cfg.moodGoldHigh.mul;
+    }
+
+    goodP *= mul;
+    rareP *= mul;
+    epicP *= mul;
+    if (box.size === 'big') {
+      goodP += this.cfg.bigBoxBonusGood;
+    }
+    goodP = Math.min(1, Math.max(0, goodP));
+    rareP = Math.min(1, Math.max(0, rareP));
+    epicP = Math.min(1, Math.max(0, epicP));
+
+    if (epicP > 0) return 'rainbow';
+    if (rareP > 0) return 'gold';
+    if (goodP > 0) return 'blue';
+    return 'white';
+  }
+
+  dig(boxId: string, holdSec: number): DigResult {
+    if (this.phase !== 'location' || this.location == null) {
+      return { ok: false, reason: '当前不能挖', items: [], mishap: false, glow: 'white', staminaCost: 0, quip: '' };
+    }
+    const locId = this.location;
+    const boxes = this.boxes.get(locId) ?? [];
+    const box = boxes.find((b) => b.id === boxId);
+    if (!box) {
+      return { ok: false, reason: '盒子不存在', items: [], mishap: false, glow: 'white', staminaCost: 0, quip: '' };
+    }
+    if (box.opened) {
+      return { ok: false, reason: '盒子已经被掏过了', items: [], mishap: false, glow: 'white', staminaCost: 0, quip: '' };
+    }
+
+    const clampHold = Math.min(Math.max(0, holdSec), this.cfg.maxHoldSec);
+    const staminaCost = this.cfg.digStamina[box.size] + clampHold * this.cfg.holdStaminaPerSec;
+    this.stamina -= staminaCost;
+    this.hunger = Math.max(0, this.hunger - this.cfg.hungerPerDig);
+    this.minute += this.cfg.minutesPerDig[box.size] + clampHold * this.cfg.minutesPerHoldSecond;
+    box.opened = true;
+
+    if (this.hunger <= 0) {
+      this.phase = 'lost';
+      this.deathCause = this.makeDeathCause();
+      return {
+        ok: false,
+        reason: '饿晕了',
+        items: [],
+        mishap: false,
+        glow: 'white',
+        staminaCost,
+        quip: '',
+        collapsed: false,
+      };
+    }
+
+    let mishapProb = 0;
+    if (clampHold > this.cfg.mishapStartSec) {
+      mishapProb = (clampHold - this.cfg.mishapStartSec) * this.cfg.mishapPerSec;
+    }
+    if (this.fortune?.effect === 'mishapUp' && this.fortuneLocation === locId) {
+      mishapProb += this.cfg.fortuneEffects.mishapUp;
+    }
+    if (this.raining) {
+      mishapProb += this.cfg.rainMishapDelta;
+    }
+    mishapProb = Math.min(1, Math.max(0, mishapProb));
+    const isMishap = this.rng.chance(mishapProb);
+
+    const items: ItemInst[] = [];
+    let glow: 'white' | 'blue' | 'gold' | 'rainbow' = 'white';
+    let quip = '';
+
+    if (isMishap) {
+      const mishapDef = this.rng.pick(ITEMS.filter((i) => i.rarity === 'mishap'));
+      items.push({ uid: this.nextUid++, itemId: mishapDef.id });
+      this.mood = Math.max(0, this.mood + this.cfg.mishapMood);
+      quip = this.makeMishapQuip();
+    } else {
+      const itemCount = box.size === 'big'
+        ? this.rng.int(this.cfg.itemsPerBox.big[0], this.cfg.itemsPerBox.big[1])
+        : this.cfg.itemsPerBox.small[0];
+
+      const day1Guarantee = this.day === 1 && this.cfg.day1GuaranteeGood && box.size === 'big' && !this.dayHasGoodOrAbove;
+      const fortuneGuarantee =
+        this.fortune?.effect === 'bigGuaranteeGood' &&
+        this.fortuneLocation === locId &&
+        box.size === 'big' &&
+        !this.fortuneGuaranteeUsed;
+      const needGuarantee = day1Guarantee || fortuneGuarantee;
+      let guaranteedFulfilled = false;
+
+      for (let i = 0; i < itemCount; i++) {
+        let rarity = this.rollRarity(clampHold, box.size, locId);
+        if (rarity === 'common' && needGuarantee && !guaranteedFulfilled) {
+          rarity = 'good';
+        }
+        if (rarity === 'good' || rarity === 'rare' || rarity === 'epic') {
+          this.dayHasGoodOrAbove = true;
+          if (needGuarantee && rarity === 'good') {
+            guaranteedFulfilled = true;
+          }
+        }
+        if (rarity === 'rare' || rarity === 'epic') {
+          this.mood = Math.min(this.cfg.maxMood, this.mood + this.cfg.rareMood);
+        }
+
+        const def = this.pickItemByRarity(rarity, locId);
+        items.push({ uid: this.nextUid++, itemId: def.id });
+        if (def.edible) {
+          this.todayEdibleSeen.push(def.id);
+        }
+        if (rarity === 'epic') {
+          glow = 'rainbow';
+        } else if (rarity === 'rare' && glow !== 'rainbow') {
+          glow = 'gold';
+        } else if (rarity === 'good' && glow === 'white') {
+          glow = 'blue';
+        }
+      }
+
+      if (needGuarantee && guaranteedFulfilled) {
+        if (fortuneGuarantee) {
+          this.fortuneGuaranteeUsed = true;
+        }
+      }
+      quip = this.makeQuip(items);
+    }
+
+    if (this.catLuck > 0) {
+      this.catLuck--;
+    }
+
+    this.floor.push(...items);
+
+    let event: PendingEvent | undefined;
+    let collapsed = false;
+
+    if (!isMishap && this.rng.chance(this.cfg.eventChancePerDig)) {
+      event = this.tryTriggerEvent(locId);
+      if (event) {
+        this.pendingEvent = event;
+        this.phase = 'event';
+      }
+    }
+
+    if (this.stamina <= 0) {
+      this.collapse();
+      collapsed = true;
+      event = undefined;
+      this.pendingEvent = null;
+    } else {
+      this.checkMidnight();
+      if ((this.phase as Phase) === 'collapsed') {
+        collapsed = true;
+        event = undefined;
+      }
+    }
+
+    return {
+      ok: true,
+      items,
+      mishap: isMishap,
+      glow,
+      staminaCost,
+      quip,
+      event,
+      collapsed,
+    };
+  }
+
+  resolveEvent(optionIndex: number, minigameWin: boolean = false): void {
+    if (this.phase !== 'event' || !this.pendingEvent) return;
+    const ev = this.pendingEvent;
+    const locId = this.location;
+    this.pendingEvent = null;
+
+    if (!locId) {
+      this.phase = 'map';
+      return;
+    }
+
+    switch (ev.id) {
+      case 'patrol': {
+        if (optionIndex === 0) {
+          this.stamina = Math.max(0, this.stamina - this.cfg.patrolLeaveStamina);
+          this.bannedToday.push(locId);
+          this.phase = 'map';
+        } else {
+          if (this.rng.chance(0.5)) {
+            this.phase = 'location';
+          } else {
+            this.mood = Math.max(0, this.mood + this.cfg.patrolMood);
+            this.bannedToday.push(locId);
+            this.phase = 'map';
+          }
+        }
+        break;
+      }
+      case 'guard': {
+        this.bannedToday.push(locId);
+        this.phase = 'map';
+        break;
+      }
+      case 'rival': {
+        if (optionIndex === 0) {
+          this.mood = Math.max(0, this.mood + this.cfg.rivalYieldMood);
+          this.phase = 'location';
+        } else {
+          if (minigameWin) {
+            const boxes = this.boxes.get(locId) ?? [];
+            boxes.push({ id: `box_extra_${this.nextUid++}`, size: 'big', opened: false });
+            this.phase = 'location';
+          } else {
+            this.stamina = Math.max(0, this.stamina - this.cfg.rivalLoseStamina);
+            this.phase = 'location';
+            if (this.stamina <= 0) {
+              this.collapse();
+            }
+          }
+        }
+        break;
+      }
+      case 'auntie': {
+        this.hunger = Math.min(this.cfg.maxHunger, this.hunger + this.cfg.auntieHunger);
+        this.mood = Math.min(this.cfg.maxMood, this.mood + this.cfg.auntieMood);
+        this.phase = 'location';
+        break;
+      }
+      case 'delivery': {
+        this.hunger = Math.min(this.cfg.maxHunger, this.hunger + this.cfg.deliveryHunger);
+        this.phase = 'location';
+        break;
+      }
+      case 'wallet': {
+        this.money += this.cfg.walletMoney;
+        this.mood = Math.min(this.cfg.maxMood, this.mood + this.cfg.walletMood);
+        this.phase = 'location';
+        break;
+      }
+      case 'cat': {
+        if (optionIndex === 0) {
+          const foodUid = this.findEdibleUid();
+          if (foodUid != null) {
+            this.eat(foodUid);
+            this.catLuck = this.cfg.catLuckDigs;
+          }
+        }
+        this.phase = 'location';
+        break;
+      }
+      case 'rain': {
+        this.raining = true;
+        this.phase = 'location';
+        break;
+      }
+    }
+  }
+
+  canPlace(itemCells: number, x: number, y: number, rotated: boolean): boolean {
+    const w = itemCells === 2 ? (rotated ? 1 : 2) : 1;
+    const h = itemCells === 2 ? (rotated ? 2 : 1) : 1;
+    if (x < 0 || y < 0 || x + w > this.bagW || y + h > this.bagH) return false;
+    for (const p of this.bag) {
+      if (this.rectsOverlap(x, y, w, h, p.x, p.y, p.w, p.h)) return false;
+    }
+    return true;
+  }
+
+  placeFromFloor(uid: number, x: number, y: number, rotated: boolean = false): boolean {
+    const idx = this.floor.findIndex((i) => i.uid === uid);
+    if (idx === -1) return false;
+    const item = this.floor[idx];
+    const def = this.findItemDef(item.itemId);
+    if (!def) return false;
+    if (!this.canPlace(def.cells, x, y, rotated)) return false;
+
+    const w = def.cells === 2 ? (rotated ? 1 : 2) : 1;
+    const h = def.cells === 2 ? (rotated ? 2 : 1) : 1;
+    this.floor.splice(idx, 1);
+    this.bag.push({ uid: item.uid, itemId: item.itemId, x, y, w, h, scratchValue: item.scratchValue });
+    return true;
+  }
+
+  moveToFloor(uid: number): boolean {
+    const idx = this.bag.findIndex((p) => p.uid === uid);
+    if (idx === -1) return false;
+    const p = this.bag[idx];
+    this.bag.splice(idx, 1);
+    this.floor.push({ uid: p.uid, itemId: p.itemId, scratchValue: p.scratchValue });
+    return true;
+  }
+
+  discard(uid: number): boolean {
+    const idx = this.floor.findIndex((i) => i.uid === uid);
+    if (idx === -1) return false;
+    this.floor.splice(idx, 1);
+    return true;
+  }
+
+  eat(uid: number): boolean {
+    let idx = this.floor.findIndex((i) => i.uid === uid);
+    let isBag = false;
+    if (idx === -1) {
+      idx = this.bag.findIndex((p) => p.uid === uid);
+      isBag = true;
+    }
+    if (idx === -1) return false;
+
+    const item = isBag ? this.bag[idx] : this.floor[idx];
+    const def = this.findItemDef(item.itemId);
+    if (!def || !def.edible) return false;
+
+    let foodMul = 1;
+    if (this.fortune?.effect === 'foodUp') {
+      foodMul = 1 + this.cfg.fortuneEffects.foodUp;
+    }
+    if (def.hunger) {
+      this.hunger = Math.min(this.cfg.maxHunger, this.hunger + Math.round(def.hunger * foodMul));
+    }
+    if (def.stamina) {
+      this.stamina = Math.min(this.maxStamina, this.stamina + def.stamina);
+    }
+    if (def.mood) {
+      this.mood = Math.min(this.cfg.maxMood, this.mood + def.mood);
+    }
+
+    if (isBag) {
+      this.bag.splice(idx, 1);
+    } else {
+      this.floor.splice(idx, 1);
+    }
+    return true;
+  }
+
+  leaveLocation(): void {
+    if (this.location == null) return;
+    this.clearFloor('离开时，没装的东西落在了原地');
+    this.location = null;
+    this.phase = 'map';
+  }
+
+  goHome(): boolean {
+    if (this.phase === 'won' || this.phase === 'lost' || this.phase === 'collapsed') return false;
+    if (this.location == null) {
+      if (this.phase === 'home') return true;
+      this.phase = 'home';
+      this.sellBagAndReport();
+      return true;
+    }
+
+    const cost = this.homeCost();
+    if (this.stamina < cost) return false;
+    this.stamina -= cost;
+    this.location = null;
+    this.phase = 'home';
+    this.clearFloor('回家路上，面前的宝贝不见了');
+    this.sellBagAndReport();
+    return true;
+  }
+
+  endDayAway(): void {
+    if (!this.goHome()) {
+      this.collapse();
+    }
+  }
+
+  buyFood(): boolean {
+    if (this.phase !== 'home') return false;
+    if (this.money < this.cfg.foodPrice) return false;
+    this.money -= this.cfg.foodPrice;
+    this.hunger = Math.min(this.cfg.maxHunger, this.hunger + this.cfg.foodHunger);
+    return true;
+  }
+
+  expandBag(): boolean {
+    if (this.bagLevel >= this.cfg.bagSizes.length - 1) return false;
+    const cost = this.cfg.bagSizes[this.bagLevel + 1].cost;
+    if (this.money < cost) return false;
+    this.money -= cost;
+    this.bagLevel++;
+    return true;
+  }
+
+  upgradeHome(): boolean {
+    if (this.homeLevel >= this.cfg.homeLevels.length - 1) return false;
+    const cost = this.cfg.homeLevels[this.homeLevel + 1].cost;
+    if (this.money < cost) return false;
+    this.money -= cost;
+    this.homeLevel++;
+    return true;
+  }
+
+  sleep(): void {
+    if (this.phase !== 'home') return;
+
+    if (this.rng.chance(this.cfg.nightWarmthChance)) {
+      this.hunger = Math.min(this.cfg.maxHunger, this.hunger + this.cfg.nightWarmthHunger);
+      this.mood = Math.min(this.cfg.maxMood, this.mood + this.cfg.warmthMood);
+      if (this.lastDayReport) {
+        this.lastDayReport.warmth = true;
+      }
+    }
+
+    this.hunger -= this.dailyHunger;
+    this.mood += this.cfg.moodPerDay;
+    this.mood = Math.max(0, Math.min(this.cfg.maxMood, this.mood));
+    this.stamina = this.maxStamina;
+
+    this.history.push({ day: this.day, money: this.money, hunger: this.hunger, stamina: this.stamina });
+
+    if (this.hunger <= 0) {
+      this.phase = 'lost';
+      this.deathCause = this.makeDeathCause();
+      return;
+    }
+    if (this.day === this.cfg.totalDays) {
+      this.phase = 'won';
+      return;
+    }
+
+    this.day += 1;
+    this.minute = this.cfg.dayStartMinute;
+    this.floor = [];
+    this.bag = [];
+    this.bannedToday = [];
+    this.raining = false;
+    this.catLuck = 0;
+    this.dayHasGoodOrAbove = false;
+    this.fortuneGuaranteeUsed = false;
+    this.todayEdibleSeen = [];
+    this.pendingEvent = null;
+    this.lastDayReport = null;
+    this.drawFortune();
+    this.phase = 'fortune';
+  }
+
+  collapse(): void {
+    if (this.phase === 'won' || this.phase === 'lost') return;
+
+    const spot = this.chooseSleepSpot();
+    const lostItems: string[] = [];
+    const loseCount = Math.floor(this.bag.length * this.cfg.collapseLoseRatio);
+    for (let i = 0; i < loseCount && this.bag.length > 0; i++) {
+      const idx = Math.floor(this.rng.next() * this.bag.length);
+      const removed = this.bag.splice(idx, 1)[0];
+      const def = this.findItemDef(removed.itemId);
+      if (def) lostItems.push(def.name);
+    }
+
+    this.clearFloor('倒下后，面前的宝贝消失了');
+
+    this.hunger -= this.dailyHunger;
+    this.mood += this.cfg.moodPerDay;
+    this.mood = Math.max(0, Math.min(this.cfg.maxMood, this.mood));
+
+    if (this.hunger <= 0) {
+      this.phase = 'lost';
+      this.deathCause = this.makeDeathCause();
+      return;
+    }
+
+    let finalSpot = spot;
+    let staminaNext = spot.stamina;
+    if (spot.cost > 0) {
+      if (this.money >= spot.cost) {
+        this.money -= spot.cost;
+      } else {
+        finalSpot = SLEEP_SPOTS[0];
+        staminaNext = finalSpot.stamina;
+        if (this.rng.chance(this.cfg.benchGuardChance)) {
+          staminaNext -= this.cfg.benchGuardStamina;
+        }
+      }
+    } else {
+      if (finalSpot.id === 'bench' && this.rng.chance(this.cfg.benchGuardChance)) {
+        staminaNext -= this.cfg.benchGuardStamina;
+      }
+    }
+    staminaNext = Math.max(0, staminaNext);
+    this.stamina = staminaNext;
+
+    this.lastCollapse = {
+      day: this.day,
+      spot: finalSpot.id,
+      spotName: finalSpot.name,
+      lostItems,
+      staminaNextDay: staminaNext,
+      text: this.makeCollapseText(finalSpot.name, lostItems),
+    };
+    this.phase = 'collapsed';
+    this.pendingEvent = null;
+  }
+
+  wakeUp(): void {
+    if (this.phase !== 'collapsed') return;
+    if (this.day === this.cfg.totalDays) {
+      this.phase = 'won';
+      return;
+    }
+
+    this.history.push({ day: this.day, money: this.money, hunger: this.hunger, stamina: this.stamina });
+    this.day += 1;
+    this.minute = this.cfg.dayStartMinute;
+    this.floor = [];
+    this.bag = [];
+    this.bannedToday = [];
+    this.raining = false;
+    this.catLuck = 0;
+    this.dayHasGoodOrAbove = false;
+    this.fortuneGuaranteeUsed = false;
+    this.todayEdibleSeen = [];
+    this.pendingEvent = null;
+    this.lastCollapse = null;
+    this.location = null;
+    this.drawFortune();
+    this.phase = 'fortune';
+  }
+
+  private drawFortuneInternal(): void {
+    const previousFortune = this.fortune;
+    let goodWeight = this.cfg.fortuneWeights.good;
+    let mehWeight = this.cfg.fortuneWeights.meh;
+    let badWeight = this.cfg.fortuneWeights.bad;
+
+    if (previousFortune?.effect === 'nextGoodUp') {
+      goodWeight += this.cfg.fortuneEffects.nextGoodUp;
+    }
+
+    const phaseDef = this.currentPhaseDef();
+    if (phaseDef.badFortuneBonus > 0) {
+      badWeight += phaseDef.badFortuneBonus;
+    }
+
+    const total = goodWeight + mehWeight + badWeight;
+    const roll = this.rng.next() * total;
+    let tier: FortuneTier;
+    if (roll < goodWeight) {
+      tier = 'good';
+    } else if (roll < goodWeight + mehWeight) {
+      tier = 'meh';
+    } else {
+      tier = 'bad';
+    }
+
+    const candidates = FORTUNES.filter((f) => f.tier === tier);
+    const fortune = this.rng.pick(candidates);
+
+    this.fortune = fortune;
+    if (fortune.needsLocation) {
+      this.fortuneLocation = this.rng.pick(LOCATIONS).id;
+    } else {
+      this.fortuneLocation = null;
+    }
+  }
+
+  private currentPhaseDef(): PhaseDef {
+    for (const phase of this.cfg.phases) {
+      if (this.day >= phase.fromDay && this.day <= phase.toDay) {
+        return phase;
+      }
+    }
+    return this.cfg.phases[this.cfg.phases.length - 1];
+  }
+
+  private findLocation(id: string): LocationDef | undefined {
+    return LOCATIONS.find((loc) => loc.id === id);
+  }
+
+  private findBox(boxId: string): Box | undefined {
+    for (const boxes of this.boxes.values()) {
+      for (const box of boxes) {
+        if (box.id === boxId) {
+          return box;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  private rollRarity(holdSec: number, boxSize: BoxSize, locId: string): Rarity {
+    const clampHold = Math.min(Math.max(0, holdSec), this.cfg.maxHoldSec);
+    let goodP = 0;
+    let rareP = 0;
+    let epicP = 0;
+
+    for (const step of this.cfg.holdCurve) {
+      if (step.minSec <= clampHold) {
+        goodP = step.good;
+        rareP = step.rare;
+        epicP = step.epic;
+      } else {
+        break;
+      }
+    }
+
+    const loc = this.findLocation(locId);
+    if (!loc) return 'common';
+    const phaseDef = this.currentPhaseDef();
+    let mul = loc.lootRate * phaseDef.lootMul;
+
+    if (this.fortune?.effect === 'lootUp' && this.fortuneLocation === locId) {
+      mul *= 1 + this.cfg.fortuneEffects.lootUp;
+    }
+
+    if (this.catLuck > 0) {
+      mul *= 1 + this.cfg.catLuckMul;
+    }
+
+    if (this.mood < this.cfg.moodGoldLow.threshold) {
+      mul *= this.cfg.moodGoldLow.mul;
+    } else if (this.mood >= this.cfg.moodGoldHigh.threshold) {
+      mul *= this.cfg.moodGoldHigh.mul;
+    }
+
+    goodP *= mul;
+    rareP *= mul;
+    epicP *= mul;
+
+    if (boxSize === 'big') {
+      goodP += this.cfg.bigBoxBonusGood;
+    }
+
+    goodP = Math.min(1, Math.max(0, goodP));
+    rareP = Math.min(1, Math.max(0, rareP));
+    epicP = Math.min(1, Math.max(0, epicP));
+
+    const roll = this.rng.next();
+    if (roll < epicP) {
+      return 'epic';
+    } else if (roll < epicP + rareP) {
+      return 'rare';
+    } else if (roll < epicP + rareP + goodP) {
+      return 'good';
+    } else {
+      return 'common';
+    }
+  }
+
+  private pickItemByRarity(rarity: Rarity, locId: string): ItemDef {
+    const candidates = ITEMS.filter((item) => item.rarity === rarity);
+    if (candidates.length === 0) return ITEMS[0];
+
+    const weights = candidates.map((item) => {
+      return item.locations?.includes(locId) ? 3 : 1;
+    });
+
+    let totalWeight = 0;
+    for (const weight of weights) {
+      totalWeight += weight;
+    }
+
+    let roll = this.rng.next() * totalWeight;
+    for (let i = 0; i < candidates.length; i++) {
+      if (roll < weights[i]) {
+        return candidates[i];
+      }
+      roll -= weights[i];
+    }
+
+    return candidates[candidates.length - 1];
+  }
+
+  private makeQuip(items: ItemInst[]): string {
+    if (items.length === 0) return '';
+    const names = items.map((i) => this.findItemDef(i.itemId)?.name ?? '未知');
+    const joined = names.join('、');
+    return `掏出：${joined}，深圳欢迎你`;
+  }
+
+  private makeMishapQuip(): string {
+    const quips = [
+      '手一抖，掏出了一团糟糕',
+      '猫主子给了你一巴掌',
+      '今天的垃圾桶格外暴躁',
+      '你被垃圾教育了',
+    ];
+    return this.rng.pick(quips);
+  }
+
+  private tryTriggerEvent(locId: string): PendingEvent | undefined {
+    const available: EventDef[] = [];
+    const weights: number[] = [];
+
+    for (const ev of EVENTS) {
+      let weight = ev.weight;
+      let allowed = true;
+
+      if (ev.id === 'patrol') {
+        const loc = this.findLocation(locId);
+        if (loc) {
+          weight *= loc.danger;
+        }
+        weight *= 1 + this.currentPhaseDef().patrolBonus;
+        if (this.fortune?.effect === 'patrolX2' && this.fortuneLocation === locId) {
+          weight *= this.cfg.fortuneEffects.patrolX2;
+        }
+      }
+
+      if (ev.id === 'rival' && !this.currentPhaseDef().rivalEnabled) {
+        allowed = false;
+      }
+
+      if (ev.id === 'rain' && this.raining) {
+        allowed = false;
+      }
+
+      if (allowed && weight > 0) {
+        available.push(ev);
+        weights.push(weight);
+      }
+    }
+
+    if (available.length === 0) return undefined;
+
+    let totalWeight = 0;
+    for (const weight of weights) {
+      totalWeight += weight;
+    }
+
+    let roll = this.rng.next() * totalWeight;
+    for (let i = 0; i < available.length; i++) {
+      if (roll < weights[i]) {
+        const ev = available[i];
+        return { id: ev.id, name: ev.name, options: [...ev.options] };
+      }
+      roll -= weights[i];
+    }
+
+    return undefined;
+  }
+
+  private findEdibleUid(): number | null {
+    for (const item of this.floor) {
+      const def = this.findItemDef(item.itemId);
+      if (def?.edible) return item.uid;
+    }
+    for (const item of this.bag) {
+      const def = this.findItemDef(item.itemId);
+      if (def?.edible) return item.uid;
+    }
+    return null;
+  }
+
+  private rectsOverlap(
+    x1: number, y1: number, w1: number, h1: number,
+    x2: number, y2: number, w2: number, h2: number,
+  ): boolean {
+    return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
+  }
+
+  private clearFloor(text: string): void {
+    if (this.floor.length > 0) {
+      this.log.push(`${text}，${this.floor.length} 件物品消失`);
+      this.floor = [];
+    }
+  }
+
+  private sellBagAndReport(): void {
+    let income = 0;
+    const soldItems: string[] = [];
+    let bestItem: string | undefined;
+    let bestPrice = -Infinity;
+
+    for (const item of this.bag) {
+      const def = this.findItemDef(item.itemId);
+      if (!def) continue;
+
+      let price = def.price;
+      if (def.id === 'scratch_card') {
+        price = this.revealScratchValue();
+        item.scratchValue = price;
+      } else if (def.priceMax != null && def.priceMax > def.price) {
+        price = def.price;
+      }
+
+      income += price;
+      soldItems.push(def.name);
+
+      if (price > bestPrice) {
+        bestPrice = price;
+        bestItem = def.name;
+      }
+    }
+
+    this.money += income;
+    this.totalIncome += income;
+    this.bag = [];
+
+    const report: DayReport = {
+      day: this.day,
+      income,
+      soldItems,
+      bestItem,
+      hungerLeft: this.hunger,
+      quip: this.makeDayQuip(soldItems, income),
+    };
+
+    if (this.lastDayReport?.warmth) {
+      report.warmth = true;
+    }
+
+    this.lastDayReport = report;
+    this.log.push(`第 ${this.day} 天卖出：${soldItems.join('、') || '无'}，收入 ¥${income.toFixed(2)}`);
+  }
+
+  private revealScratchValue(): number {
+    const roll = this.rng.next() * 100;
+    if (roll < 60) {
+      return 0;
+    } else if (roll < 90) {
+      return this.rng.int(5, 20);
+    } else if (roll < 99) {
+      return this.rng.int(30, 80);
+    } else {
+      return 200;
+    }
+  }
+
+  private makeDayQuip(soldItems: string[], income: number): string {
+    if (soldItems.length === 0) {
+      return '今天一无所获，深圳的天空依旧灰蒙蒙';
+    }
+    const best = soldItems[soldItems.length - 1];
+    return `今日战绩：${best}，收入 ¥${income.toFixed(2)}，深圳欢迎你`;
+  }
+
+  private chooseSleepSpot(): SleepSpotDef {
+    let roll = this.rng.next();
+    for (const spot of SLEEP_SPOTS) {
+      if (roll < spot.prob) {
+        return spot;
+      }
+      roll -= spot.prob;
+    }
+    return SLEEP_SPOTS[0];
+  }
+
+  private makeDeathCause(): string {
+    const dayText = `第 ${this.day} 天`;
+    if (this.todayEdibleSeen.length > 0) {
+      const name = this.findItemDef(this.todayEdibleSeen[this.todayEdibleSeen.length - 1])?.name ?? '可吃的东西';
+      return `${dayText}，舍不得吃那块${name}，饿晕了`;
+    }
+    const causes = [
+      `${dayText}，在深圳的街头饿成了纸片人`,
+      `${dayText}，以为喝西北风能饱，结果风停了`,
+      `${dayText}，终于理解了什么叫“饿得前胸贴后背”`,
+      `${dayText}，塑料袋翻了个遍，只找到了孤独`,
+    ];
+    return this.rng.pick(causes);
+  }
+
+  private makeCollapseText(spotName: string, lostItems: string[]): string {
+    if (lostItems.length === 0) {
+      return `你在${spotName}睡着了，醒来还是身无分文，但至少没丢东西。`;
+    }
+    const names = lostItems.join('、');
+    return `你在${spotName}睡着了，醒来少了 ${lostItems.length} 样东西：${names}。`;
+  }
+
+  private findItemDef(id: string): ItemDef | undefined {
+    return ITEMS.find((item) => item.id === id);
+  }
+  private checkMidnight(): void {
+    if (this.phase === 'won' || this.phase === 'lost' || this.phase === 'collapsed' || this.phase === 'home') return;
+    if (this.location == null) return;
+    if (this.minute < this.cfg.midnightMinute) return;
+
+    if (this.stamina >= this.homeCost()) {
+      this.goHome();
+    } else {
+      this.collapse();
+    }
+  }
+
+}
+```
+# config.ts 类型部分
+```ts
+export type Rarity = 'common' | 'good' | 'rare' | 'epic' | 'mishap';
+export type BoxSize = 'small' | 'big';
+export type FortuneTier = 'good' | 'meh' | 'bad';
+
+export interface ItemDef {
+  id: string;
+  name: string;
+  rarity: Rarity;
+  cells: 1 | 2;
+  price: number;
+  priceMax?: number;
+  edible: boolean;
+  hunger?: number;
+  stamina?: number;
+  mood?: number;
+  desc: string;
+  locations?: string[];
+}
+
+export interface LocationDef {
+  id: string;
+  name: string;
+  lootRate: number;
+  danger: number;
+  distance: number;
+  far: boolean;
+}
+
+export interface FortuneDef {
+  id: string;
+  tier: FortuneTier;
+  name: string;
+  text: string;
+  effect:
+    | 'lootUp'
+    | 'bigGuaranteeGood'
+    | 'foodUp'
+    | 'none'
+    | 'nextGoodUp'
+    | 'patrolX2'
+    | 'mishapUp'
+    | 'windy';
+  needsLocation: boolean;
+}
+
+export interface EventDef {
+  id: 'patrol' | 'guard' | 'rival' | 'auntie' | 'delivery' | 'wallet' | 'cat' | 'rain';
+  name: string;
+  weight: number;
+  options: string[];
+}
+
+export interface SleepSpotDef {
+  id: 'bench' | 'diner' | 'netcafe';
+  name: string;
+  prob: number;
+  stamina: number;
+  cost: number;
+}
+
+export interface HoldCurveStep {
+  minSec: number;
+  good: number;
+  rare: number;
+  epic: number;
+}
+
+export interface PhaseDef {
+  fromDay: number;
+  toDay: number;
+  dailyHunger: number;
+  lootMul: number;
+  patrolBonus: number;
+  rivalEnabled: boolean;
+  badFortuneBonus: number;
+  farTravelMul: number;
+}
+
+export interface BagSizeDef {
+  w: number;
+  h: number;
+  cost: number;
+}
+
+export interface HomeLevelDef {
+  name: string;
+  cost: number;
+  staminaBonus: number;
+}
+
+export interface FortuneEffectsConfig {
+  lootUp: number;
+  foodUp: number;
+  nextGoodUp: number;
+  patrolX2: number;
+  mishapUp: number;
+  windy: number;
+}
+
+export interface Config {
+  totalDays: number;
+  startHunger: number;
+  maxHunger: number;
+  startStamina: number;
+  maxStamina: number;
+  startMood: number;
+  maxMood: number;
+  startMoney: number;
+  dayStartMinute: number;
+  midnightMinute: number;
+  minutesPerDig: Record<BoxSize, number>;
+  minutesPerHoldSecond: number;
+  travelMinutes: number;
+  digStamina: Record<BoxSize, number>;
+  holdStaminaPerSec: number;
+  hungerPerDig: number;
+  moodPerDay: number;
+  phases: PhaseDef[];
+  holdCurve: HoldCurveStep[];
+  mishapStartSec: number;
+  mishapPerSec: number;
+  maxHoldSec: number;
+  itemsPerBox: Record<BoxSize, [number, number]>;
+  bigBoxBonusGood: number;
+  boxesPerLocation: [number, number];
+  boxCountFortuneDelta: Record<FortuneTier, [number, number]>;
+  bigBoxChance: Record<FortuneTier, number>;
+  moodGoldLow: { threshold: number; mul: number };
+  moodGoldHigh: { threshold: number; mul: number };
+  eventChancePerDig: number;
+  fortuneWeights: Record<FortuneTier, number>;
+  fortuneEffects: FortuneEffectsConfig;
+  rainTravelExtra: number;
+  rainMishapDelta: number;
+  catLuckDigs: number;
+  catLuckMul: number;
+  patrolLeaveStamina: number;
+  patrolMood: number;
+  rivalYieldMood: number;
+  rivalLoseStamina: number;
+  auntieHunger: number;
+  auntieMood: number;
+  deliveryHunger: number;
+  walletMoney: number;
+  walletMood: number;
+  mishapMood: number;
+  rareMood: number;
+  warmthMood: number;
+  nightWarmthChance: number;
+  nightWarmthHunger: number;
+  bagSizes: BagSizeDef[];
+  foodPrice: number;
+  foodHunger: number;
+  rerollBase: number;
+  rerollStep: number;
+  homeLevels: HomeLevelDef[];
+  benchGuardChance: number;
+  benchGuardStamina: number;
+  collapseLoseRatio: number;
+  day1GuaranteeGood: boolean;
+  adsEnabled: boolean;
+}
+
+export const ITEMS: ItemDef[] = [
+  {
+    id: 'empty_water_bottle',
+    name: '空矿泉水瓶',
+    rarity: 'common',
+    cells: 1,
+    price: 0.2,
+    edible: false,
+    desc: '深圳最稳定的理财产品',
+  },
+  {
+    id: 'crushed_can',
+    name: '压扁的易拉罐',
+    rarity: 'common',
+    cells: 1,
+    price: 0.3,
+    edible: false,
+    desc: '被人踩过，但它没放弃',
+  },
+  {
+    id: 'old_newspaper',
+    name: '旧报纸',
+    rarity: 'common',
+    cells: 1,
+    price: 0.5,
+    edible: false,
+    desc: '头条写着「就业形势向好」',
+  },
+  {
+    id: 'cardboard_box',
+    name: '纸箱',
+    rarity: 'common',
+    cells: 2,
+    price: 1.5,
+    edible: false,
+    desc: '白天能卖钱，晚上能当被子',
+  },
+```
+# 已有 cocos/assets/scripts/ui/ArtMap.ts
+```ts
+/**
+ * assets/scripts/ui/ArtMap.ts
+ * 逻辑名 → 美术素材路径 映射表
+ * 供 Art.ts 解析 frames / icons / 地图坐标使用
+ */
+
+export type ArtAlias = {
+    src: 'res' | 'bg';
+    path: string;
+    fps?: number;
+    loopFrom?: number;
+    insets?: [number, number, number, number];
+};
+
+export const ART_ALIAS: Record<string, ArtAlias> = {
+    // ---------- 主角 ----------
+    hero_idle: { src: 'res', path: 'hero_idle' },
+    hero_walk: { src: 'res', path: 'hero_walk' },
+    hero_dig: { src: 'res', path: 'hero_dig' },
+    hero_fall: { src: 'res', path: 'hero_fall_sleep' },
+
+    // ---------- 盒子 ----------
+    box_small: { src: 'res', path: 'box_bag_shake' },
+    box_big: { src: 'res', path: 'box_bin_shake' },
+    box_big_alt: { src: 'res', path: 'box_scrap_shake' },
+
+    // ---------- 光效 ----------
+    glow_white: { src: 'res', path: 'glow_white' },
+    glow_blue: { src: 'res', path: 'glow_blue' },
+    glow_gold: { src: 'res', path: 'glow_gold' },
+    glow_rainbow: { src: 'res', path: 'glow_rainbow' },
+
+    // ---------- 开盖特效 ----------
+    lid_pop: { src: 'res', path: 'fx_lidpop' },
+
+    // ---------- NPC / 事件 ----------
+    npc_patrol: { src: 'res', path: 'npc_patrol_uncle' },
+    ev_patrol: { src: 'res', path: 'npc_patrol_uncle' },
+
+    npc_guard: { src: 'res', path: 'npc_guard' },
+    ev_guard: { src: 'res', path: 'npc_guard' },
+
+    npc_rival: { src: 'res', path: 'npc_rival' },
+    ev_rival: { src: 'res', path: 'npc_rival' },
+
+    npc_cat: { src: 'res', path: 'npc_cat' },
+    ev_cat: { src: 'res', path: 'npc_cat' },
+
+    npc_auntie: { src: 'res', path: 'npc_kind_auntie' },
+    ev_auntie: { src: 'res', path: 'npc_kind_auntie' },
+
+    npc_courier: { src: 'res', path: 'npc_delivery_rider' },
+    ev_delivery: { src: 'res', path: 'npc_delivery_rider' },
+
+    ev_wallet: { src: 'res', path: 'npc_wallet_owner' },
+
+    npc_sanitation: { src: 'res', path: 'npc_sanitation_auntie' },
+    ev_night_warmth: { src: 'res', path: 'npc_sanitation_auntie' },
+
+    // ---------- 摇签 / 卡片 ----------
+    fortune_tube: { src: 'res', path: 'fortune_cup', fps: 10, loopFrom: 1 },
+    fortune_slip: { src: 'res', path: 'fortune_slip' },
+
+    card_day: { src: 'res', path: 'card_daily' },
+    card_fail: { src: 'res', path: 'card_fail' },
+    card_cert: { src: 'res', path: 'card_cert' },
+
+    // ---------- UI 条 / 按钮 / 面板 ----------
+    bar_hunger: { src: 'res', path: 'bar_frame_yellow', insets: [3, 3, 3, 3] },
+    bar_stamina: { src: 'res', path: 'bar_frame_red', insets: [3, 3, 3, 3] },
+    bar_mood: { src: 'res', path: 'bar_frame_blue', insets: [2, 2, 2, 2] },
+
+    button: { src: 'res', path: 'button_normal', insets: [2, 2, 2, 4] },
+    button_pressed: { src: 'res', path: 'button_pressed', insets: [5, 5, 4, 5] },
+    panel: { src: 'res', path: 'panel_frame', insets: [5, 3, 5, 5] },
+
+    // ---------- 背景（bg 分包） ----------
+    bg_huaqiangbei: { src: 'bg', path: 'loc_huaqiangbei' },
+    bg_dongmen: { src: 'bg', path: 'loc_dongmen' },
+    bg_baishizhou: { src: 'bg', path: 'loc_baishizhou' },
+    bg_futian_cbd: { src: 'bg', path: 'loc_futian_cbd' },
+    bg_nanshan_tech: { src: 'bg', path: 'loc_nanshan_tech' },
+
+    // 以下逻辑名没有背景素材，Art.ts 中走占位：
+    // bg_sz_bay / bg_window_world / bg_university_town
+    // home_2
+
+    map: { src: 'bg', path: 'map_shenzhen' },
+
+    home_0: { src: 'bg', path: 'shelter_bed' },
+    home_1: { src: 'bg', path: 'shelter_recycle' },
+
+    sleep_bench: { src: 'bg', path: 'sleep_park' },
+    sleep_diner: { src: 'bg', path: 'sleep_fastfood' },
+    sleep_netcafe: { src: 'bg', path: 'sleep_netcafe' },
+};
+
+/**
+ * itemId → iconName
+ * icon 文件位于 assets/resources/art/icons/<iconName>.png
+ * 没有登记的 itemId 由 Art.ts 使用占位色块 + 名字首字。
+ */
+export const ICON_MAP: Record<string, string> = {
+    empty_water_bottle: 'plastic_bottle',
+    crushed_can: 'soda_can',
+    cardboard_box: 'cardboard',
+    left_slipper: 'left_slipper',
+    broken_umbrella: 'umbrella',
+    half_cup_milk_tea: 'milk_tea',
+    cold_bun: 'buns',
+    half_egg_tart: 'egg_tart',
+    expired_bread: 'bread',
+    charging_cable: 'charger_cable',
+    energy_drink: 'tin_can',
+    delivery_set_meal: 'rice_box',
+    exam_materials: 'old_book',
+    mechanical_keyboard: 'keyboard',
+    old_phone: 'old_phone',
+    scratch_card: 'scratch_card',
+    dead_mouse: 'dead_mouse',
+};
+
+/**
+ * locationId → 地图 360x640 像素坐标（原点左上）。
+ * Art.ts 中换算为 Cocos 坐标：
+ *   cx = (x - 180) * 2
+ *   cy = (320 - y) * 2
+ */
+export const MAP_POINTS: Record<string, { x: number; y: number }> = {
+    university_town: { x: 210, y: 154 },
+    huaqiangbei: { x: 301, y: 216 },
+    nanshan_tech: { x: 43, y: 264 },
+    baishizhou: { x: 178, y: 301 },
+    window_world: { x: 106, y: 311 },
+    dongmen: { x: 329, y: 357 },
+    futian_cbd: { x: 244, y: 403 },
+    sz_bay: { x: 59, y: 421 },
+};```
+# 已有 cocos/assets/scripts/ui/Art.ts
+```ts
+import {
+  _decorator,
+  Component,
+  Node,
+  Label,
+  Graphics,
+  Color,
+  UITransform,
+  Sprite,
+  SpriteFrame,
+  Texture2D,
+  Button,
+  resources,
+  assetManager,
+  AssetManager,
+} from 'cc';
+import { ART_ALIAS, ICON_MAP } from './ArtMap';
+
+const { ccclass } = _decorator;
+
+const ART_ROOT = 'art';
+const DEFAULT_FPS = 10;
+
+/** 文件名自然排序（0.png, 1.png, ... 10.png 不会排到 2 前面） */
+function compareNames(a: string, b: string): number {
+  if (a === b) return 0;
+  const pa = a.replace(/\d+/g, '#');
+  const pb = b.replace(/\d+/g, '#');
+  if (pa !== pb) return pa < pb ? -1 : 1;
+  const na = a.match(/\d+/g);
+  const nb = b.match(/\d+/g);
+  if (na && nb && na.length > 0 && nb.length > 0) {
+    const len = Math.min(na.length, nb.length);
+    for (let i = 0; i < len; i++) {
+      const x = parseInt(na[i], 10);
+      const y = parseInt(nb[i], 10);
+      if (x !== y) return x - y;
+    }
+    if (na.length !== nb.length) return na.length - nb.length;
+  }
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * 挂在节点上的简易序列帧播放器，支持循环起点。
+ */
+@ccclass('ArtSpritePlayer')
+export class ArtSpritePlayer extends Component {
+  private _frames: SpriteFrame[] = [];
+  private _fps: number = DEFAULT_FPS;
+  private _loop: boolean = true;
+  private _loopFrom: number = 0;
+  private _index: number = 0;
+  private _sprite: Sprite | null = null;
+
+  public setFrames(
+    frames: SpriteFrame[],
+    fps: number = DEFAULT_FPS,
+    loop: boolean = true,
+    loopFrom: number = 0,
+  ): void {
+    this._frames = frames && frames.length > 0 ? frames.slice() : [];
+    const f = Math.floor(fps);
+    this._fps = f > 0 ? f : DEFAULT_FPS;
+    this._loop = loop;
+    this._loopFrom = Math.max(0, Math.min(loopFrom, Math.max(0, this._frames.length - 1)));
+    this._index = 0;
+    this.applyFrame();
+    this.restartSchedule();
+  }
+
+  public get frameCount(): number {
+    return this._frames.length;
+  }
+
+  protected onEnable(): void {
+    this.restartSchedule();
+  }
+
+  protected onDisable(): void {
+    this.unschedule(this.tick);
+  }
+
+  private ensureSprite(): Sprite | null {
+    if (!this._sprite || !this._sprite.isValid) {
+      this._sprite = this.getComponent(Sprite);
+    }
+    return this._sprite;
+  }
+
+  private applyFrame(): void {
+    const sp = this.ensureSprite();
+    if (!sp) return;
+    sp.spriteFrame =
+      this._frames.length > 0
+        ? this._frames[Math.min(this._index, this._frames.length - 1)]
+        : null;
+  }
+
+  private restartSchedule(): void {
+    this.unschedule(this.tick);
+    if (!this.node || !this.node.activeInHierarchy) return;
+    if (this._frames.length <= 1) return;
+    this.schedule(this.tick, 1 / this._fps);
+  }
+
+  private tick(): void {
+    if (this._frames.length <= 1) return;
+    this._index++;
+    if (this._index >= this._frames.length) {
+      if (this._loop) {
+        this._index = this._loopFrom;
+      } else {
+        this._index = this._frames.length - 1;
+        this.unschedule(this.tick);
+        this.applyFrame();
+        return;
+      }
+    }
+    this.applyFrame();
+  }
+}
+
+/**
+ * 表现层素材工具。
+ * 所有 art 资源都是可选的：没有序列帧时一律退化成纯色块 + 文字占位。
+ */
+export class Art {
+  private static _preloaded: boolean = false;
+  private static _bgLoaded: boolean = false;
+  private static _resFramesCache: Map<string, SpriteFrame[]> = new Map();
+  private static _bgFramesCache: Map<string, SpriteFrame> = new Map();
+  private static _missing: Set<string> = new Set();
+  private static _bgWaiters: { name: string; node: Node }[] = [];
+
+  /** 预加载 resources/art 下所有 SpriteFrame，并后台加载背景 bundle。 */
+  public static async preload(): Promise<void> {
+    if (Art._preloaded) return;
+    Art._preloaded = true;
+
+    // 1. 加载 resources/art 下所有 SpriteFrame
+    try {
+      await new Promise<void>((resolve) => {
+        try {
+          resources.loadDir(ART_ROOT, SpriteFrame, (err: Error | null, assets: SpriteFrame[]) => {
+            if (err || !assets) {
+              resolve();
+              return;
+            }
+            Art.collectResFrames();
+            resolve();
+          });
+        } catch (e) {
+          resolve();
+        }
+      });
+    } catch (e) {
+      // ignore
+    }
+
+    // 2. 设置纹理过滤与九宫格 insets
+    Art.applyFiltersAndInsets();
+
+    // 3. 后台加载背景 bundle
+    await Art.loadBackgrounds();
+  }
+
+  /** 获取逻辑名对应的序列帧（bg/icon 映射到正确路径）。无素材返回空数组。 */
+  public static frames(name: string): SpriteFrame[] {
+    if (!name) return [];
+
+    // icon_<itemId>
+    if (name.startsWith('icon_')) {
+      const itemId = name.slice(5);
+      const iconName = ICON_MAP[itemId];
+      if (!iconName) {
+        Art.recordMissing(name);
+        return [];
+      }
+      const key = `icons/${iconName}`;
+      const list = Art._resFramesCache.get(key);
+      if (list && list.length > 0) return list;
+      if (Art._preloaded) Art.recordMissing(name);
+      return [];
+    }
+
+    // bg_<locationId>
+    if (name.startsWith('bg_')) {
+      const alias = ART_ALIAS[name];
+      if (!alias || alias.src !== 'bg') {
+        Art.recordMissing(name);
+        return [];
+      }
+      const sf = Art._bgFramesCache.get(alias.path);
+      if (sf) return [sf];
+      if (Art._bgLoaded) Art.recordMissing(name);
+      return [];
+    }
+
+    // 普通逻辑名
+    const alias = ART_ALIAS[name];
+    if (alias && alias.src === 'res') {
+      const list = Art._resFramesCache.get(alias.path);
+      if (list && list.length > 0) return list;
+      if (Art._preloaded) Art.recordMissing(name);
+      return [];
+    }
+
+    // 兼容：直接尝试用原名作为素材目录
+    const legacy = Art._resFramesCache.get(name);
+    if (legacy && legacy.length > 0) return legacy;
+    if (Art._preloaded) Art.recordMissing(name);
+    return [];
+  }
+
+  /**
+   * 通用可视占位：有序列帧 -> Sprite 自动循环播放；
+   * 否则 -> 纯色块 + 中文文字。背景未加载完时先占位，加载完自动替换。
+   */
+  public static makeVisual(
+    name: string,
+    w: number,
+    h: number,
+    color: Color,
+    label?: string,
+  ): Node {
+    const width = Math.max(1, Math.round(w));
+    const height = Math.max(1, Math.round(h));
+    const node = new Node(name || 'visual');
+    const ut = node.addComponent(UITransform);
+    ut.setContentSize(width, height);
+
+    const frames = Art.frames(name);
+    if (frames.length > 0) {
+      Art.applySpriteToNode(node, name, frames);
+      return node;
+    }
+
+    // 背景尚未加载完成？
+    const alias = ART_ALIAS[name];
+    if (alias && alias.src === 'bg' && !Art._bgLoaded) {
+      // 先画占位，等背景加载完成后再替换
+      Art.drawPlaceholder(node, width, height, color, label);
+      Art._bgWaiters.push({ name, node });
+      return node;
+    }
+
+    // 普通占位
+    Art.drawPlaceholder(node, width, height, color, label);
+    return node;
+  }
+
+  /** 切换节点的序列帧播放；目标名字没有帧时 no-op。 */
+  public static play(
+    node: Node,
+    name: string,
+    fps: number = DEFAULT_FPS,
+    loop: boolean = true,
+  ): void {
+    if (!node || !node.isValid) return;
+    const frames = Art.frames(name);
+    if (frames.length === 0) return;
+
+    const alias = ART_ALIAS[name];
+    const loopFrom = alias?.loopFrom ?? 0;
+    Art.applySpriteToNode(node, name, frames, fps, loop, loopFrom);
+  }
+
+  /**
+   * 创建卡片节点：高度 = parentH * 0.7，宽 = 高 * 0.75，水平居中。
+   * 底图为卡片素材，上面挂 content 子节点。
+   */
+  public static makeCard(
+    kind: 'card_day' | 'card_fail' | 'card_cert',
+    parentH: number,
+  ): Node {
+    const cardH = Math.max(100, parentH * 0.7);
+    const cardW = cardH * 0.75;
+    const node = new Node(kind);
+    const ut = node.addComponent(UITransform);
+    ut.setContentSize(cardW, cardH);
+
+    const frames = Art.frames(kind);
+    if (frames.length > 0) {
+      Art.applySpriteToNode(node, kind, frames);
+    } else {
+      Art.drawPlaceholder(node, cardW, cardH, new Color(220, 220, 220, 255), kind);
+    }
+
+    // 文字内容子节点
+    const content = new Node('content');
+    const cut = content.addComponent(UITransform);
+    cut.setContentSize(cardW, cardH);
+    content.setParent(node);
+    content.setPosition(0, 0, 0);
+    return node;
+  }
+
+  /** 创建九宫格按钮，按下时切换素材。无素材时退化为色块按钮。 */
+  public static makeButton(
+    text: string,
+    w: number,
+    h: number,
+    onClick: () => void,
+  ): Node {
+    const node = new Node('button');
+    const ut = node.addComponent(UITransform);
+    ut.setContentSize(w, h);
+
+    const normalFrames = Art.frames('button');
+    const pressedFrames = Art.frames('button_pressed');
+
+    let sprite: Sprite | null = null;
+    if (normalFrames.length > 0 && pressedFrames.length > 0) {
+      Art.applySpriteToNode(node, 'button', normalFrames);
+      sprite = node.getComponent(Sprite);
+      if (sprite) {
+        sprite.type = Sprite.Type.SLICED;
+      }
+      const btn = node.addComponent(Button);
+      btn.transition = Button.Transition.SPRITE;
+      btn.normalSprite = normalFrames[0];
+      btn.pressedSprite = pressedFrames[0];
+    } else {
+      // 色块按钮
+      const g = node.addComponent(Graphics);
+      const col = new Color(90, 90, 100, 255);
+      g.fillColor = col;
+      g.rect(-w / 2, -h / 2, w, h);
+      g.fill();
+      const btn = node.addComponent(Button);
+      btn.transition = Button.Transition.COLOR;
+      btn.normalColor = col;
+      btn.pressedColor = new Color(60, 60, 70, 255);
+    }
+
+    // 文字
+    const labelNode = new Node('label');
+    const lUt = labelNode.addComponent(UITransform);
+    lUt.setContentSize(w, h);
+    const lb = labelNode.addComponent(Label);
+    lb.string = text;
+    lb.fontSize = Math.max(14, Math.min(28, Math.floor(Math.min(w, h) * 0.5)));
+    lb.lineHeight = lb.fontSize + 4;
+    lb.horizontalAlign = Label.HorizontalAlign.CENTER;
+    lb.verticalAlign = Label.VerticalAlign.CENTER;
+    lb.overflow = Label.Overflow.SHRINK;
+    lb.enableWrapText = false;
+    lb.color = new Color(245, 245, 245, 255);
+    labelNode.setParent(node);
+    labelNode.setPosition(0, 0, 0);
+
+    node.on(Button.EventType.CLICK, () => {
+      onClick();
+    });
+
+    return node;
+  }
+
+  /** 代码绘制背包单个格子。 */
+  public static drawCell(
+    g: Graphics,
+    x: number,
+    y: number,
+    size: number,
+    state: 'normal' | 'hover' | 'bad' | 'filled',
+  ): void {
+    const half = size / 2;
+    // 深色底
+    g.fillColor = new Color(45, 45, 50, 255);
+    g.rect(x - half, y - half, size, size);
+    g.fill();
+
+    g.lineWidth = 2;
+    let strokeColor: Color;
+    switch (state) {
+      case 'hover':
+        strokeColor = new Color(255, 220, 80, 255);
+        break;
+      case 'bad':
+        strokeColor = new Color(255, 90, 90, 255);
+        break;
+      case 'filled':
+        strokeColor = new Color(180, 180, 200, 255);
+        break;
+      case 'normal':
+      default:
+        strokeColor = new Color(160, 160, 170, 255);
+        break;
+    }
+    g.strokeColor = strokeColor;
+    g.rect(x - half, y - half, size, size);
+    g.stroke();
+  }
+
+  /** 返回本次运行中被请求但没有素材、走了占位的逻辑名（去重）。 */
+  public static missing(): string[] {
+    return Array.from(Art._missing);
+  }
+
+  // ------------------------------------------------------------------
+  // 内部方法
+  // ------------------------------------------------------------------
+
+  private static recordMissing(name: string): void {
+    Art._missing.add(name);
+  }
+
+  private static drawPlaceholder(
+    node: Node,
+    width: number,
+    height: number,
+    color: Color,
+    label?: string,
+  ): void {
+    const base = color ? color.clone() : new Color(200, 200, 200, 255);
+    const g = node.addComponent(Graphics);
+    g.fillColor = base;
+    g.rect(-width / 2, -height / 2, width, height);
+    g.fill();
+    g.lineWidth = Math.max(1, Math.round(Math.min(width, height) * 0.05));
+    g.strokeColor = new Color(0, 0, 0, 90);
+    g.stroke();
+
+    if (label != null && label !== '') {
+      const ln = new Node('ph_label');
+      const lut = ln.addComponent(UITransform);
+      lut.setContentSize(width, height);
+      const lb = ln.addComponent(Label);
+      lb.string = label;
+      const fs = Math.max(12, Math.min(30, Math.floor(Math.min(width, height) * 0.52)));
+      lb.fontSize = fs;
+      lb.lineHeight = fs + 4;
+      lb.horizontalAlign = Label.HorizontalAlign.CENTER;
+      lb.verticalAlign = Label.VerticalAlign.CENTER;
+      lb.overflow = Label.Overflow.SHRINK;
+      lb.enableWrapText = false;
+      const lum = 0.299 * base.r + 0.587 * base.g + 0.114 * base.b;
+      lb.color = lum > 150 ? new Color(25, 25, 28, 255) : new Color(248, 248, 248, 255);
+      ln.setParent(node);
+      ln.setPosition(0, 0, 0);
+    }
+  }
+
+  private static applySpriteToNode(
+    node: Node,
+    name: string,
+    frames: SpriteFrame[],
+    fps?: number,
+    loop?: boolean,
+    loopFrom?: number,
+  ): void {
+    if (!node || !node.isValid || frames.length === 0) return;
+
+    // 隐藏占位元素
+    const g = node.getComponent(Graphics);
+    if (g) g.enabled = false;
+    const label = node.getChildByName('ph_label');
+    if (label) label.active = false;
+
+    let sp = node.getComponent(Sprite);
+    if (!sp) {
+      sp = node.addComponent(Sprite);
+    }
+    sp.sizeMode = Sprite.SizeMode.CUSTOM;
+    const alias = ART_ALIAS[name];
+    if (alias?.insets) {
+      sp.type = Sprite.Type.SLICED;
+    } else {
+      sp.type = Sprite.Type.SIMPLE;
+    }
+    // 注意：这里假设 UITransform 已经存在并设置了尺寸
+    // 如果没有，makeVisual 里已设置；play 升级的节点一般也有了
+
+    const effectiveFps = fps || DEFAULT_FPS;
+    const effectiveLoop = loop ?? true;
+    const effectiveLoopFrom = loopFrom ?? alias?.loopFrom ?? 0;
+
+    let player = node.getComponent(ArtSpritePlayer);
+    if (!player) {
+      player = node.addComponent(ArtSpritePlayer);
+    }
+    player.setFrames(frames, effectiveFps, effectiveLoop, effectiveLoopFrom);
+  }
+
+  /** 从已加载的 resources/art 资源中归类缓存。 */
+  private static collectResFrames(): void {
+    Art._resFramesCache.clear();
+    const buckets: Map<string, { key: string; sf: SpriteFrame }[]> = new Map();
+    let infos: any[] = [];
+    try {
+      const got = (resources as any).getDirWithPath(ART_ROOT, SpriteFrame) as any[];
+      if (got && got.length > 0) infos = got;
+    } catch (e) {
+      infos = [];
+    }
+
+    for (let i = 0; i < infos.length; i++) {
+      const info: any = infos[i];
+      if (!info) continue;
+      const rawPath: string = info.path || info.url || '';
+      if (!rawPath) continue;
+
+      const segs = rawPath.split('/');
+      let parts = segs;
+      const tail = parts[parts.length - 1];
+      if (tail === 'spriteFrame' || tail === 'texture') {
+        parts = parts.slice(0, parts.length - 1);
+      }
+
+      if (parts.length < 3) continue; // 至少 art/xxx/file
+
+      const artIdx = parts.indexOf(ART_ROOT);
+      if (artIdx === -1) continue; // 不在 art 目录下
+      const relParts = parts.slice(artIdx + 1); // 相对 art/ 的路径段
+      if (relParts.length < 2) continue; // 至少有一个目录和文件
+
+      let name: string;
+      let file: string;
+      if (relParts.length === 2) {
+        // 目录/文件 或 子目录/文件（如 icons/plastic_bottle）
+        const dirName = relParts[0];
+        file = relParts[1];
+        if (dirName === 'icons') {
+          // 图标单独作为 key：icons/<filename>
+          name = `icons/${file}`;
+        } else {
+          name = dirName;
+        }
+      } else if (relParts.length > 2) {
+        // 多级目录，暂时只取最后一级目录名作为 key
+        name = relParts[relParts.length - 2];
+        file = relParts[relParts.length - 1];
+      } else {
+        continue;
+      }
+
+      let sf: SpriteFrame | null = null;
+      try {
+        sf = resources.get(rawPath, SpriteFrame) as SpriteFrame | null;
+      } catch (e) {
+        sf = null;
+      }
+      if (!sf) {
+        // 尝试直接使用 info.asset
+        sf = info.asset as SpriteFrame | null;
+      }
+      if (!sf) continue;
+
+      let arr = buckets.get(name);
+      if (!arr) {
+        arr = [];
+        buckets.set(name, arr);
+      }
+      arr.push({ key: file, sf });
+    }
+
+    buckets.forEach((arr: { key: string; sf: SpriteFrame }[], name: string) => {
+      arr.sort((a, b) => compareNames(a.key, b.key));
+      const frames: SpriteFrame[] = [];
+      for (let i = 0; i < arr.length; i++) frames.push(arr[i].sf);
+      if (frames.length > 0) Art._resFramesCache.set(name, frames);
+    });
+  }
+
+  /** 设置纹理过滤与九宫格 insets。 */
+  private static applyFiltersAndInsets(): void {
+    // 设置所有 res SpriteFrame 的 filter
+    Art._resFramesCache.forEach((frames: SpriteFrame[]) => {
+      frames.forEach((sf: SpriteFrame) => {
+        if (sf.texture) {
+          (sf.texture as Texture2D).setFilters(
+            Texture2D.Filter.NEAREST,
+            Texture2D.Filter.NEAREST,
+          );
+        }
+      });
+    });
+
+    // 根据 ART_ALIAS 设置 insets
+    for (const [name, alias] of Object.entries(ART_ALIAS)) {
+      if (alias.src !== 'res' || !alias.insets) continue;
+      const frames = Art._resFramesCache.get(alias.path);
+      if (!frames || frames.length === 0) continue;
+      const [l, r, t, b] = alias.insets;
+      frames.forEach((sf: SpriteFrame) => {
+        sf.insetLeft = l;
+        sf.insetRight = r;
+        sf.insetTop = t;
+        sf.insetBottom = b;
+      });
+    }
+  }
+
+  /** 加载背景 bundle 并缓存所有背景。 */
+  private static async loadBackgrounds(): Promise<void> {
+    return new Promise<void>((resolve) => {
+      assetManager.loadBundle('bg', (err: Error | null, bundle: AssetManager.Bundle | null) => {
+        if (err || !bundle) {
+          Art._bgLoaded = true;
+          Art._onBgLoaded();
+          resolve();
+          return;
+        }
+
+        const bgAliases = Object.entries(ART_ALIAS).filter(
+          ([, alias]) => alias.src === 'bg',
+        );
+
+        let remaining = bgAliases.length;
+        if (remaining === 0) {
+          Art._bgLoaded = true;
+          Art._onBgLoaded();
+          resolve();
+          return;
+        }
+
+        const tryLoad = (alias: { path: string }) => {
+          const path = alias.path;
+          const loadByPath = (url: string) => {
+            bundle.load(url, SpriteFrame, (err2: Error | null, sf: SpriteFrame | null) => {
+              if (err2 || !sf) {
+                // 尝试另一种方式
+                const altUrl = url === `${path}/spriteFrame` ? path : `${path}/spriteFrame`;
+                if (url !== altUrl) {
+                  tryLoad({ path });
+                } else {
+                  finishOne(null);
+                }
+                return;
+              }
+              finishOne(sf);
+            });
+          };
+          loadByPath(`${path}/spriteFrame`);
+        };
+
+        const finishOne = (sf: SpriteFrame | null) => {
+          if (sf) {
+            if (sf.texture) {
+              (sf.texture as Texture2D).setFilters(
+                Texture2D.Filter.NEAREST,
+                Texture2D.Filter.NEAREST,
+              );
+            }
+            Art._bgFramesCache.set(alias.path, sf);
+          }
+          remaining--;
+          if (remaining <= 0) {
+            Art._bgLoaded = true;
+            Art._onBgLoaded();
+            resolve();
+          }
+        };
+
+        for (const [, alias] of bgAliases) {
+          tryLoad(alias);
+        }
+      });
+    });
+  }
+
+  /** 背景加载完成后的处理：替换等待中的占位节点。 */
+  private static _onBgLoaded(): void {
+    const waiters = Art._bgWaiters.slice();
+    Art._bgWaiters = [];
+    for (const { name, node } of waiters) {
+      const frames = Art.frames(name);
+      if (frames.length > 0 && node && node.isValid) {
+        Art.applySpriteToNode(node, name, frames);
+      }
+    }
+  }
+}```
+# 已有 cocos/assets/scripts/ui/Fx.ts
+```ts
+import {
+  Color,
+  Graphics,
+  Label,
+  Node,
+  Tween,
+  UIOpacity,
+  UITransform,
+  Vec3,
+  tween,
+  view,
+} from 'cc';
+
+/**
+ * Fx —— 纯代码缓动 / 特效工具。
+ * 所有节点都是 new Node() 现造，父节点由调用方（GameRoot / 各 View）传入。
+ * 不依赖 prefab、不依赖场景里预先摆放的任何东西。
+ */
+export class Fx {
+  // ---------------------------------------------------------------- 抖动
+  /** 小幅左右/上下抖动 */
+  static shake(node: Node, strength: number = 10, duration: number = 0.3): void {
+    if (!node || !node.isValid) return;
+    Tween.stopAllByTarget(node);
+    const base = node.position.clone();
+    const steps = 6;
+    const seg = Math.max(0.016, duration / (steps + 1));
+    let tw = tween(node);
+    for (let i = 0; i < steps; i++) {
+      const k = strength * (1 - i / steps);
+      tw = tw.to(seg, {
+        position: new Vec3(
+          base.x + (Math.random() * 2 - 1) * k,
+          base.y + (Math.random() * 2 - 1) * k,
+          base.z,
+        ),
+      });
+    }
+    tw.to(seg, { position: base }).start();
+  }
+
+  /** 整屏震一下（一般给 Canvas 根节点） */
+  static screenShake(root: Node): void {
+    if (!root || !root.isValid) return;
+    Fx.shake(root, 18, 0.4);
+  }
+
+  /** 鼓一下再回来 */
+  static pulse(node: Node, scale: number = 1.12, duration: number = 0.12): void {
+    if (!node || !node.isValid) return;
+    Tween.stopAllByTarget(node);
+    const base = node.scale.clone();
+    const half = Math.max(0.03, duration / 2);
+    tween(node)
+      .to(half, { scale: new Vec3(base.x * scale, base.y * scale, base.z) })
+      .to(half, { scale: base })
+      .start();
+  }
+
+  // ---------------------------------------------------------------- 抛物线
+  /** 从 from 抛物线飞到 to（x 线性、y 叠加一个正弦拱高） */
+  static popArc(node: Node, from: Vec3, to: Vec3, duration: number = 0.45): Promise<void> {
+    return new Promise<void>((resolve) => {
+      if (!node || !node.isValid) {
+        resolve();
+        return;
+      }
+      const fz = from.z || 0;
+      const tz = to.z || 0;
+      node.setPosition(from.x, from.y, fz);
+      const arc = Math.max(60, Math.min(240, Math.abs(to.x - from.x) * 0.35 + 60));
+      const state = { t: 0 };
+      tween(state)
+        .to(
+          Math.max(0.05, duration),
+          { t: 1 },
+          {
+            onUpdate: () => {
+              if (!node || !node.isValid) return;
+              const t = state.t;
+              const x = from.x + (to.x - from.x) * t;
+              const y = from.y + (to.y - from.y) * t + Math.sin(Math.PI * t) * arc;
+              node.setPosition(x, y, fz + (tz - fz) * t);
+            },
+          },
+        )
+        .call(() => {
+          if (node && node.isValid) node.setPosition(to.x, to.y, tz);
+          resolve();
+        })
+        .start();
+    });
+  }
+
+  // ---------------------------------------------------------------- 时间
+  /** 冻结（等待）指定秒数 */
+  static freeze(seconds: number): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const state = { t: 0 };
+      tween(state)
+        .delay(Math.max(0, seconds))
+        .call(() => resolve())
+        .start();
+    });
+  }
+
+  // ---------------------------------------------------------------- 闪屏 / 光晕
+  /** 全屏闪一下颜色（默认白） */
+  static flash(root: Node, color: Color = new Color(255, 255, 255, 150), duration: number = 0.35): void {
+    if (!root || !root.isValid) return;
+    const size = view.getVisibleSize();
+    const w = size.width;
+    const h = size.height;
+    const n = new Node('fx_flash');
+    n.parent = root;
+    const ut = n.addComponent(UITransform);
+    ut.setContentSize(w, h);
+    const g = n.addComponent(Graphics);
+    g.fillColor = color ? color.clone() : new Color(255, 255, 255, 150);
+    g.rect(-w / 2, -h / 2, w, h);
+    g.fill();
+    const op = n.addComponent(UIOpacity);
+    op.opacity = 255;
+    tween(op)
+      .to(Math.max(0.05, duration), { opacity: 0 })
+      .call(() => {
+        if (n && n.isValid) n.destroy();
+      })
+      .start();
+  }
+
+  /** 屏幕四边呼吸光晕。on=false 时移除 */
+  static edgeGlow(root: Node, color: Color, on: boolean): void {
+    if (!root || !root.isValid) return;
+    const NAME = 'fx_edge_glow';
+    const old = root.getChildByName(NAME);
+    if (old) {
+      Tween.stopAllByTarget(old);
+      old.destroy();
+    }
+    if (!on) return;
+
+    const size = view.getVisibleSize();
+    const w = size.width;
+    const h = size.height;
+    const t = 18;
+
+    const n = new Node(NAME);
+    n.parent = root;
+    const ut = n.addComponent(UITransform);
+    ut.setContentSize(w, h);
+    n.setPosition(0, 0, 0);
+
+    const g = n.addComponent(Graphics);
+    g.fillColor = color ? color.clone() : new Color(255, 220, 120, 200);
+    g.rect(-w / 2, h / 2 - t, w, t);
+    g.fill();
+    g.rect(-w / 2, -h / 2, w, t);
+    g.fill();
+    g.rect(-w / 2, -h / 2, t, h);
+    g.fill();
+    g.rect(w / 2 - t, -h / 2, t, h);
+    g.fill();
+
+    const op = n.addComponent(UIOpacity);
+    op.opacity = 130;
+    tween(op)
+      .to(0.45, { opacity: 255 })
+      .to(0.45, { opacity: 130 })
+      .union()
+      .repeatForever()
+      .start();
+  }
+
+  // ---------------------------------------------------------------- 淡入淡出
+  static fadeIn(node: Node, duration: number = 0.3): Promise<void> {
+    return new Promise<void>((resolve) => {
+      if (!node || !node.isValid) {
+        resolve();
+        return;
+      }
+      const op = node.getComponent(UIOpacity) || node.addComponent(UIOpacity);
+      op.opacity = 0;
+      tween(op)
+        .to(Math.max(0.01, duration), { opacity: 255 })
+        .call(() => resolve())
+        .start();
+    });
+  }
+
+  static fadeOut(node: Node, duration: number = 0.3): Promise<void> {
+    return new Promise<void>((resolve) => {
+      if (!node || !node.isValid) {
+        resolve();
+        return;
+      }
+      const op = node.getComponent(UIOpacity) || node.addComponent(UIOpacity);
+      op.opacity = 255;
+      tween(op)
+        .to(Math.max(0.01, duration), { opacity: 0 })
+        .call(() => resolve())
+        .start();
+    });
+  }
+
+  // ---------------------------------------------------------------- 遮罩
+  /** 全屏半透明黑遮罩，返回节点，用完自己 destroy */
+  static dimOverlay(root: Node, alpha: number = 175): Node {
+    const size = view.getVisibleSize();
+    const w = size.width;
+    const h = size.height;
+    const n = new Node('fx_dim');
+    n.parent = root;
+    const ut = n.addComponent(UITransform);
+    ut.setContentSize(w, h);
+    n.setPosition(0, 0, 0);
+    const g = n.addComponent(Graphics);
+    g.fillColor = new Color(0, 0, 0, Math.max(0, Math.min(255, Math.round(alpha))));
+    g.rect(-w / 2, -h / 2, w, h);
+    g.fill();
+    const op = n.addComponent(UIOpacity);
+    op.opacity = 0;
+    tween(op)
+      .to(0.18, { opacity: 255 })
+      .start();
+    return n;
+  }
+
+  // ---------------------------------------------------------------- 漂浮文字
+  /** 飘字：从 pos 向上飘并淡出 */
+  static floatText(root: Node, text: string, pos: Vec3, color?: Color): Node {
+    const n = new Node('fx_float_text');
+    n.parent = root;
+    n.setPosition(pos ? pos.x : 0, pos ? pos.y : 0, pos ? pos.z || 0 : 0);
+
+    const ut = n.addComponent(UITransform);
+    ut.setContentSize(240, 40);
+    ut.setAnchorPoint(0.5, 0.5);
+
+    const label = n.addComponent(Label);
+    label.string = text;
+    label.fontSize = 28;
+    label.lineHeight = 32;
+    label.color = color ? color.clone() : new Color(255, 255, 255, 255);
+    label.horizontalAlign = Label.HorizontalAlign.CENTER;
+    label.verticalAlign = Label.VerticalAlign.CENTER;
+
+    const op = n.addComponent(UIOpacity);
+    op.opacity = 255;
+
+    const rise = 70;
+    tween(n)
+      .by(1.0, { position: new Vec3(0, rise, 0) }, { easing: 'quadOut' })
+      .start();
+    tween(op)
+      .delay(0.45)
+      .to(0.55, { opacity: 0 })
+      .call(() => {
+        if (n && n.isValid) n.destroy();
+      })
+      .start();
+    return n;
+  }
+
+  // ---------------------------------------------------------------- 进度条
+  /**
+   * 把 barNode 的显示比例设为 ratio(0~1)。
+   * 支持两种条：
+   *  - 节点带 Graphics：清空后按左对齐重画一个矩形（宽度按初始宽 * ratio）；
+   *  - 节点无 Graphics（纯 Sprite/纯色块）：改 UITransform 宽度并补偿锚点位移。
+   */
+  static barTo(barNode: Node, ratio: number): void {
+    if (!barNode || !barNode.isValid) return;
+    const ut = barNode.getComponent(UITransform);
+    if (!ut) return;
+
+    let full: number = (barNode as any).__fxFull as number;
+    let height: number = (barNode as any).__fxHeight as number;
+    let baseX: number = (barNode as any).__fxBaseX as number;
+    let baseY: number = (barNode as any).__fxBaseY as number;
+
+    if (full == null) {
+      full = ut.width;
+      height = ut.height;
+      baseX = barNode.position.x;
+      baseY = barNode.position.y;
+      (barNode as any).__fxFull = full;
+      (barNode as any).__fxHeight = height;
+      (barNode as any).__fxBaseX = baseX;
+      (barNode as any).__fxBaseY = baseY;
+    }
+
+    const r = Math.max(0, Math.min(1, ratio));
+    const w = Math.max(0.01, full * r);
+    const anchor = ut.anchorPoint;
+    const g = barNode.getComponent(Graphics);
+
+    if (g) {
+      if (!(barNode as any).__fxColor) {
+        (barNode as any).__fxColor = g.fillColor ? g.fillColor.clone() : new Color(255, 255, 255, 255);
+      }
+      const c: Color = (barNode as any).__fxColor;
+      const left = -anchor.x * full;
+      const bottom = -anchor.y * height;
+      g.clear();
+      g.fillColor = c;
+      g.rect(left, bottom, w, height);
+      g.fill();
+    } else {
+      ut.setContentSize(w, height);
+      barNode.setPosition(baseX - (full - w) * anchor.x, baseY, barNode.position.z);
+    }
+  }
+
+  // ---------------------------------------------------------------- 震动
+  /** 微信小游戏短震动；无 wx 环境直接跳过 */
+  static vibrateShort(): void {
+    try {
+      const wxAny: any = (globalThis as any).wx;
+      if (wxAny && typeof wxAny.vibrateShort === 'function') {
+        wxAny.vibrateShort({ type: 'light' });
+      }
+    } catch (e) {
+      // 忽略
+    }
+  }
+
+  // ---------------------------------------------------------------- 雨
+  /** 全屏像素雨，返回容器节点（需要停止时自己 destroy） */
+  static rainOverlay(root: Node): Node {
+    const size = view.getVisibleSize();
+    const w = Math.max(720, size.width);
+    const h = Math.max(1280, size.height);
+
+    const holder = new Node('fx_rain');
+    holder.parent = root;
+    const hut = holder.addComponent(UITransform);
+    hut.setContentSize(w, h);
+    holder.setPosition(0, 0, 0);
+
+    for (let layer = 0; layer < 3; layer++) {
+      const ln = new Node('fx_rain_layer_' + layer);
+      ln.parent = holder;
+      const lut = ln.addComponent(UITransform);
+      lut.setContentSize(w, h * 3);
+      ln.setPosition(0, 0, 0);
+
+      const g = ln.addComponent(Graphics);
+      g.lineWidth = 1 + layer;
+      g.strokeColor = new Color(150, 200, 255, 90 + layer * 55);
+
+      const count = 22;
+      for (let i = 0; i < count; i++) {
+        const rx = ((i * 137 + layer * 61) % 1000) / 1000;
+        const ry = ((i * 311 + layer * 173) % 1000) / 1000;
+        const x = -w / 2 + rx * w;
+        const y = -h + ry * h * 3;
+        const len = 16 + ((i + layer * 5) % 3) * 9;
+        g.moveTo(x, y);
+        g.lineTo(x - 3, y - len);
+        g.stroke();
+      }
+
+      const dur = 0.6 + layer * 0.2;
+      tween(ln)
+        .to(dur, { position: new Vec3(0, -h, 0) })
+        .call(() => {
+          if (ln && ln.isValid) ln.setPosition(0, 0, 0);
+        })
+        .union()
+        .repeatForever()
+        .start();
+    }
+    return holder;
+  }
+
+  // ---------------------------------------------------------------- 彩带
+  /** 全屏彩纸喷洒（通关用） */
+  static confetti(root: Node): Node {
+    const size = view.getVisibleSize();
+    const w = Math.max(720, size.width);
+    const h = Math.max(1280, size.height);
+
+    const holder = new Node('fx_confetti');
+    holder.parent = root;
+    const hut = holder.addComponent(UITransform);
+    hut.setContentSize(w, h);
+    holder.setPosition(0, 0, 0);
+
+    const palette: Color[] = [
+      new Color(255, 92, 92, 255),
+      new Color(255, 200, 60, 255),
+      new Color(90, 210, 255, 255),
+      new Color(120, 235, 130, 255),
+      new Color(230, 130, 255, 255),
+      new Color(255, 255, 255, 255),
+    ];
+
+    const count = 40;
+    for (let i = 0; i < count; i++) {
+      const n = new Node('fx_cf_' + i);
+      n.parent = holder;
+      const nut = n.addComponent(UITransform);
+      const cw = 8 + (i % 3) * 4;
+      const ch = 5 + (i % 2) * 4;
+      nut.setContentSize(cw, ch);
+
+      const g = n.addComponent(Graphics);
+      g.fillColor = palette[i % palette.length];
+      g.rect(-cw / 2, -ch / 2, cw, ch);
+      g.fill();
+
+      const x0 = -w / 2 + Math.random() * w;
+      const y0 = h / 2 + 40 + Math.random() * 260;
+      n.setPosition(x0, y0, 0);
+
+      const drift = (Math.random() * 2 - 1) * 130;
+      const dur = 1.8 + Math.random() * 1.6;
+
+      tween(n)
+        .delay(Math.random() * 0.9)
+        .by(dur, { position: new Vec3(drift, -(h + 340), 0) }, { easing: 'quadIn' })
+        .start();
+
+      tween(n)
+        .by(dur, { angle: (Math.random() > 0.5 ? 1 : -1) * 540 })
+        .start();
+    }
+
+    tween(holder)
+      .delay(4.2)
+      .call(() => {
+        if (holder && holder.isValid) holder.destroy();
+      })
+      .start();
+
+    return holder;
+  }
+}```
+# 已有 cocos/assets/scripts/ui/LocationView.ts
+```ts
+import {
+  _decorator,
+  Component,
+  Node,
+  Label,
+  Graphics,
+  Color,
+  UITransform,
+  Vec3,
+  tween,
+  Tween,
+  UIOpacity,
+  EventTouch,
+  view,
+} from 'cc';
+import { Game, Box, ItemInst, Placed, PendingEvent, DigResult } from '../core/game';
+import { CONFIG, ITEMS, LOCATIONS, ItemDef, Rarity } from '../core/config';
+import { Art } from './Art';
+import { Fx } from './Fx';
+
+const { ccclass } = _decorator;
+
+const CELL = 80;
+const SMALL_BOX = 96;
+const BIG_BOX = 144;
+const FLOOR_Y = -80;
+const BAG_Y = -360;
+const HOLD_UI_Y = -580;
+
+/** 用于驱动按住每帧更新 */
+@ccclass('LocationHoldUpdater')
+class LocationHoldUpdater extends Component {
+  public onTick: ((dt: number) => void) | null = null;
+
+  update(dt: number): void {
+    if (this.onTick) this.onTick(dt);
+  }
+}
+
+export class LocationView {
+  private root: Node;
+  private game: Game;
+  private onChanged: () => void;
+  private onEvent: (ev: PendingEvent) => void;
+  private onLeave: () => void;
+
+  private viewNode: Node | null = null;
+  private boxContainer: Node | null = null;
+  private floorContainer: Node | null = null;
+  private bagContainer: Node | null = null;
+  private holdUI: Node | null = null;
+  private progressFill: Node | null = null;
+  private holdLabel: Label | null = null;
+  private holdUpdater: LocationHoldUpdater | null = null;
+
+  private boxNodes: Map<string, Node> = new Map();
+  private floorNodes: Map<number, Node> = new Map();
+  private bagNodes: Map<number, Node> = new Map();
+
+  private holdBoxId: string | null = null;
+  private holdStartTime: number = 0;
+  private lastDebrisTime: number = 0;
+  private glowNode: Node | null = null;
+  private edgeGlowOn: boolean = false;
+
+  private draggingUid: number | null = null;
+  private draggingNode: Node | null = null;
+  private dragOffset: Vec3 = new Vec3();
+  private isDragging: boolean = false;
+  private potentialDrag: boolean = false;
+  private touchStartPos: Vec3 = new Vec3();
+  private touchStartTime: number = 0;
+  private floorRotated: Map<number, boolean> = new Map();
+
+  constructor(
+    root: Node,
+    game: Game,
+    onChanged: () => void,
+    onEvent: (ev: PendingEvent) => void,
+    onLeave: () => void,
+  ) {
+    this.root = root;
+    this.game = game;
+    this.onChanged = onChanged;
+    this.onEvent = onEvent;
+    this.onLeave = onLeave;
+  }
+
+  public show(): void {
+    if (this.viewNode) this.hide();
+    if (!this.game.location) return;
+
+    this.viewNode = new Node('LocationView');
+    this.viewNode.parent = this.root;
+    const ut = this.viewNode.addComponent(UITransform);
+    ut.setContentSize(720, 1280);
+    this.viewNode.setPosition(0, 0, 0);
+
+    // 地点背景
+    const locId = this.game.location;
+    const loc = LOCATIONS.find((l) => l.id === locId);
+    const bgColor = new Color(110, 130, 100, 255);
+    const bg = Art.makeVisual(`bg_${locId}`, 720, 1280, bgColor, loc?.name ?? locId);
+    bg.parent = this.viewNode;
+    bg.setPosition(0, 0, 0);
+
+    // 盒子区域
+    this.boxContainer = new Node('boxes');
+    this.boxContainer.parent = this.viewNode;
+    this.boxContainer.setPosition(0, 350, 0);
+    const boxUt = this.boxContainer.addComponent(UITransform);
+    boxUt.setContentSize(720, 300);
+
+    // 待选区（地板）
+    this.floorContainer = new Node('floor');
+    this.floorContainer.parent = this.viewNode;
+    this.floorContainer.setPosition(0, FLOOR_Y, 0);
+    const floorUt = this.floorContainer.addComponent(UITransform);
+    floorUt.setContentSize(720, 220);
+
+    // 背包格子区
+    this.bagContainer = new Node('bag');
+    this.bagContainer.parent = this.viewNode;
+    this.bagContainer.setPosition(0, BAG_Y, 0);
+    const bagUt = this.bagContainer.addComponent(UITransform);
+    bagUt.setContentSize(720, 360);
+
+    this.createButtons();
+    this.createHoldUI();
+
+    this.renderBoxes();
+    this.renderFloor();
+    this.renderBag();
+
+    this.holdUpdater = this.viewNode.addComponent(LocationHoldUpdater);
+    this.holdUpdater.onTick = (dt: number) => this.updateHold(dt);
+  }
+
+  public hide(): void {
+    if (this.holdBoxId) this.stopHold(true);
+    if (this.isDragging) this.cancelDrag();
+    this.closeMenu();
+    if (this.viewNode) {
+      this.viewNode.destroy();
+      this.viewNode = null;
+    }
+    this.boxNodes.clear();
+    this.floorNodes.clear();
+    this.bagNodes.clear();
+    this.floorRotated.clear();
+    this.holdUpdater = null;
+    this.progressFill = null;
+    this.holdLabel = null;
+    this.glowNode = null;
+  }
+
+  // ------------------------------------------------------------------
+  // 构建按钮
+  // ------------------------------------------------------------------
+  private createButtons(): void {
+    if (!this.viewNode) return;
+
+    const leaveBtn = this.makeButton('换地点', new Vec3(-180, -640, 0), () => {
+      this.game.leaveLocation();
+      this.onLeave();
+    });
+    leaveBtn.parent = this.viewNode;
+
+    const homeBtn = this.makeButton('回家', new Vec3(180, -640, 0), () => {
+      const cost = this.game.homeCost();
+      if (this.game.goHome()) {
+        Fx.floatText(this.viewNode!, `回家需 ¥${cost.toFixed?.(0) ?? cost}`, new Vec3(0, -500, 0));
+        this.onChanged();
+      } else {
+        Fx.floatText(this.viewNode!, `体力不足，回家需 ${cost}`, new Vec3(0, -500, 0), new Color(255, 80, 80, 255));
+      }
+    });
+    homeBtn.parent = this.viewNode;
+  }
+
+  private makeButton(text: string, pos: Vec3, onClick: () => void): Node {
+    const btn = new Node('button');
+    const ut = btn.addComponent(UITransform);
+    ut.setContentSize(140, 60);
+    const g = btn.addComponent(Graphics);
+    g.fillColor = new Color(70, 70, 70, 200);
+    g.roundRect(-70, -30, 140, 60, 10);
+    g.fill();
+    g.strokeColor = new Color(200, 200, 200, 255);
+    g.lineWidth = 2;
+    g.stroke();
+
+    const labelNode = new Node('label');
+    const lut = labelNode.addComponent(UITransform);
+    lut.setContentSize(140, 60);
+    const label = labelNode.addComponent(Label);
+    label.string = text;
+    label.fontSize = 26;
+    label.lineHeight = 30;
+    label.color = new Color(255, 255, 255, 255);
+    label.horizontalAlign = Label.HorizontalAlign.CENTER;
+    label.verticalAlign = Label.VerticalAlign.CENTER;
+    labelNode.parent = btn;
+    labelNode.setPosition(0, 0, 0);
+
+    btn.setPosition(pos.x, pos.y, pos.z || 0);
+    btn.on(Node.EventType.TOUCH_START, () => onClick(), this);
+    return btn;
+  }
+
+  // ------------------------------------------------------------------
+  // 按住 UI
+  // ------------------------------------------------------------------
+  private createHoldUI(): void {
+    if (!this.viewNode) return;
+    this.holdUI = new Node('hold_ui');
+    this.holdUI.parent = this.viewNode;
+    this.holdUI.setPosition(0, HOLD_UI_Y, 0);
+    const hut = this.holdUI.addComponent(UITransform);
+    hut.setContentSize(600, 100);
+
+    const bg = new Node('bg');
+    const bgUt = bg.addComponent(UITransform);
+    bgUt.setContentSize(400, 30);
+    const bgG = bg.addComponent(Graphics);
+    bgG.fillColor = new Color(0, 0, 0, 160);
+    bgG.rect(-200, -15, 400, 30);
+    bgG.fill();
+    bg.parent = this.holdUI;
+    bg.setPosition(0, 30, 0);
+
+    this.progressFill = new Node('fill');
+    const fillUt = this.progressFill.addComponent(UITransform);
+    fillUt.setContentSize(400, 30);
+    const fillG = this.progressFill.addComponent(Graphics);
+    fillG.fillColor = new Color(90, 200, 255, 220);
+    fillG.rect(-200, -15, 400, 30);
+    fillG.fill();
+    this.progressFill.parent = bg;
+    this.progressFill.setPosition(0, 0, 0);
+    (this.progressFill as any).__fxFull = 400;
+    (this.progressFill as any).__fxHeight = 30;
+    (this.progressFill as any).__fxBaseX = 0;
+    (this.progressFill as any).__fxBaseY = 0;
+    (this.progressFill as any).__fxColor = new Color(90, 200, 255, 220);
+
+    const labelNode = new Node('label');
+    const lut = labelNode.addComponent(UITransform);
+    lut.setContentSize(500, 40);
+    this.holdLabel = labelNode.addComponent(Label);
+    this.holdLabel.string = '';
+    this.holdLabel.fontSize = 24;
+    this.holdLabel.lineHeight = 28;
+    this.holdLabel.color = new Color(255, 255, 255, 255);
+    this.holdLabel.horizontalAlign = Label.HorizontalAlign.CENTER;
+    this.holdLabel.verticalAlign = Label.VerticalAlign.CENTER;
+    labelNode.parent = this.holdUI;
+    labelNode.setPosition(0, -20, 0);
+
+    this.holdUI.active = false;
+  }
+
+  // ------------------------------------------------------------------
+  // 渲染盒子
+  // ------------------------------------------------------------------
+  private renderBoxes(): void {
+    if (!this.boxContainer || !this.game.location) return;
+    const boxes = this.game.boxesAt(this.game.location);
+    const cols = 4;
+    const spacingX = 180;
+    const spacingY = 200;
+
+    boxes.forEach((box, idx) => {
+      let node = this.boxNodes.get(box.id);
+      if (!node) {
+        node = this.createBoxNode(box);
+        this.boxNodes.set(box.id, node);
+        node.parent = this.boxContainer;
+        this.attachBoxTouch(node, box.id);
+      }
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+      const x = (col - (Math.min(cols, boxes.length) - 1) / 2) * spacingX;
+      const y = 0 - row * spacingY;
+      node.setPosition(x, y, 0);
+      node.active = !box.opened;
+    });
+
+    // 移除已经不存在的盒子节点
+    const ids = new Set(boxes.map((b) => b.id));
+    for (const [id, node] of this.boxNodes) {
+      if (!ids.has(id)) {
+        node.destroy();
+        this.boxNodes.delete(id);
+      }
+    }
+  }
+
+  private createBoxNode(box: Box): Node {
+    const size = box.size === 'big' ? BIG_BOX : SMALL_BOX;
+    const color = box.size === 'big' ? new Color(160, 120, 70, 255) : new Color(130, 100, 60, 255);
+    const node = Art.makeVisual(`box_${box.size}`, size, size, color, box.id);
+    return node;
+  }
+
+  private attachBoxTouch(node: Node, boxId: string): void {
+    node.on(Node.EventType.TOUCH_START, (event: EventTouch) => this.onBoxTouchStart(event, boxId), this);
+    node.on(Node.EventType.TOUCH_END, (event: EventTouch) => this.onBoxTouchEnd(event, boxId), this);
+    node.on(Node.EventType.TOUCH_CANCEL, (event: EventTouch) => this.onBoxTouchCancel(event, boxId), this);
+  }
+
+  private onBoxTouchStart(event: EventTouch, boxId: string): void {
+    if (this.holdBoxId) return;
+    const box = this.game.boxesAt(this.game.location!).find((b) => b.id === boxId);
+    if (!box || box.opened) return;
+
+    this.holdBoxId = boxId;
+    this.holdStartTime = Date.now();
+    this.lastDebrisTime = Date.now();
+    Fx.vibrateShort();
+    this.holdUI!.active = true;
+    this.updateHold(0);
+
+    if (this.holdUpdater) this.holdUpdater.onTick = (dt: number) => this.updateHold(dt);
+  }
+
+  private onBoxTouchEnd(event: EventTouch, boxId: string): void {
+    if (this.holdBoxId === boxId) {
+      this.stopHold(false);
+    }
+  }
+
+  private onBoxTouchCancel(event: EventTouch, boxId: string): void {
+    if (this.holdBoxId === boxId) {
+      this.stopHold(true);
+    }
+  }
+
+  private stopHold(cancelled: boolean): void {
+    if (!this.holdBoxId) return;
+    const boxId = this.holdBoxId;
+    const holdSec = Math.min(CONFIG.maxHoldSec, (Date.now() - this.holdStartTime) / 1000);
+    this.holdBoxId = null;
+    this.holdStartTime = 0;
+    if (this.holdUpdater) this.holdUpdater.onTick = null;
+    this.holdUI!.active = false;
+    this.clearHoldEffects();
+    if (!cancelled) {
+      this.performDig(boxId, holdSec);
+    }
+  }
+
+  private updateHold(dt: number): void {
+    if (!this.holdBoxId) return;
+    const boxId = this.holdBoxId;
+    const locId = this.game.location!;
+    const box = this.game.boxesAt(locId).find((b) => b.id === boxId);
+    if (!box) return;
+
+    const sec = Math.min(CONFIG.maxHoldSec, (Date.now() - this.holdStartTime) / 1000);
+    const boxNode = this.boxNodes.get(boxId);
+    if (!boxNode) return;
+
+    // 抖动
+    const strength = sec < 1 ? 4 : sec < 3 ? 10 : 16;
+    const origPos = new Vec3(0, 0, 0); // 盒子在容器中的原始位置由render设置，这里临时存一下
+    // 为了保持原位置，需要记录当前布局位置
+    const col = this.game.boxesAt(locId).findIndex((b) => b.id === boxId);
+    if (col === -1) return;
+    const cols = 4;
+    const spacingX = 180;
+    const spacingY = 200;
+    const row = Math.floor(col / cols);
+    const colIdx = col % cols;
+    const baseX = (colIdx - (Math.min(cols, this.game.boxesAt(locId).length) - 1) / 2) * spacingX;
+    const baseY = 0 - row * spacingY;
+    boxNode.setPosition(
+      baseX + (Math.random() - 0.5) * strength,
+      baseY + (Math.random() - 0.5) * strength,
+      0,
+    );
+
+    // 碎纸片
+    const now = Date.now();
+    if (now - this.lastDebrisTime > 120) {
+      this.lastDebrisTime = now;
+      this.spawnDebris(boxNode.getWorldPosition());
+    }
+
+    // 光晕
+    const glow = this.game.glowFor(sec, boxId);
+    this.updateGlow(glow, boxNode.getWorldPosition());
+
+    // 进度条和文字
+    const ratio = sec / CONFIG.maxHoldSec;
+    if (this.progressFill) Fx.barTo(this.progressFill, ratio);
+    const staminaCost = CONFIG.digStamina[box.size] + sec * CONFIG.holdStaminaPerSec;
+    const remaining = this.game.stamina;
+    if (this.holdLabel) {
+      this.holdLabel.string = `剩余体力 ${remaining} / 本次将扣 ${staminaCost.toFixed?.(1)}`;
+    }
+
+    // edge glow
+    if (glow === 'gold' || glow === 'rainbow') {
+      if (!this.edgeGlowOn) {
+        Fx.edgeGlow(this.root, glow === 'gold' ? new Color(255, 220, 100, 220) : new Color(255, 100, 255, 220), true);
+        this.edgeGlowOn = true;
+      }
+    } else {
+      if (this.edgeGlowOn) {
+        Fx.edgeGlow(this.root, new Color(255, 255, 255, 255), false);
+        this.edgeGlowOn = false;
+      }
+    }
+  }
+
+  private spawnDebris(worldPos: Vec3): void {
+    if (!this.viewNode) return;
+    const pieces = 3;
+    for (let i = 0; i < pieces; i++) {
+      const n = new Node('debris');
+      n.parent = this.viewNode;
+      const ut = n.addComponent(UITransform);
+      const w = 8 + Math.random() * 10;
+      ut.setContentSize(w, w);
+      const g = n.addComponent(Graphics);
+      g.fillColor = new Color(180, 160, 120, 255);
+      g.rect(-w / 2, -w / 2, w, w);
+      g.fill();
+
+      // 将世界坐标转换为 viewNode 局部坐标
+      const local = this.viewNode.getComponent(UITransform)!.convertToNodeSpaceAR(worldPos);
+      n.setPosition(local.x, local.y, 0);
+
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 60 + Math.random() * 80;
+      const target = new Vec3(local.x + Math.cos(angle) * dist, local.y + Math.sin(angle) * dist, 0);
+      Fx.popArc(n, n.position.clone(), target, 0.5).then(() => {
+        if (n.isValid) n.destroy();
+      });
+    }
+  }
+
+  private updateGlow(glow: 'white' | 'blue' | 'gold' | 'rainbow', worldPos: Vec3): void {
+    if (!this.viewNode) return;
+    if (this.glowNode && this.glowNode.isValid) {
+      this.glowNode.destroy();
+      this.glowNode = null;
+    }
+    const colors: Record<string, Color> = {
+      white: new Color(255, 255, 255, 180),
+      blue: new Color(100, 200, 255, 200),
+      gold: new Color(255, 220, 80, 220),
+      rainbow: new Color(255, 120, 255, 220),
+    };
+    const color = colors[glow] ?? colors.white;
+    this.glowNode = Art.makeVisual(`glow_${glow}`, 70, 70, color);
+    this.glowNode.parent = this.viewNode;
+    const local = this.viewNode.getComponent(UITransform)!.convertToNodeSpaceAR(worldPos);
+    this.glowNode.setPosition(local.x, local.y + 50, 0);
+  }
+
+  private clearHoldEffects(): void {
+    if (this.glowNode && this.glowNode.isValid) {
+      this.glowNode.destroy();
+      this.glowNode = null;
+    }
+    if (this.edgeGlowOn) {
+      Fx.edgeGlow(this.root, new Color(255, 255, 255, 255), false);
+      this.edgeGlowOn = false;
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // 挖盒子动画与结果处理
+  // ------------------------------------------------------------------
+  private async performDig(boxId: string, holdSec: number): Promise<void> {
+    const boxNode = this.boxNodes.get(boxId);
+    const box = this.game.boxesAt(this.game.location!).find((b) => b.id === boxId);
+    if (!boxNode || !box) return;
+
+    // 盒子开启动画
+    if (box.size === 'small') {
+      Fx.pulse(boxNode, 1.3, 0.15);
+      await Fx.freeze(0.2);
+      await Fx.fadeOut(boxNode, 0.2);
+    } else {
+      Fx.pulse(boxNode, 1.5, 0.25);
+      await Fx.freeze(0.3);
+      // 模拟盖子弹开
+      const cap = new Node('cap');
+      cap.parent = boxNode;
+      const capUt = cap.addComponent(UITransform);
+      capUt.setContentSize(20, 20);
+      const capG = cap.addComponent(Graphics);
+      capG.fillColor = new Color(100, 70, 40, 255);
+      capG.circle(0, 0, 10);
+      capG.fill();
+      cap.setPosition(0, 0, 0);
+      Fx.popArc(cap, new Vec3(0, 0, 0), new Vec3(0, 120, 0), 0.4).then(() => cap.destroy());
+      await Fx.freeze(0.35);
+      await Fx.fadeOut(boxNode, 0.3);
+    }
+    boxNode.active = false;
+
+    const result = this.game.dig(boxId, holdSec);
+    if (!result.ok) {
+      if (result.reason) {
+        Fx.floatText(this.viewNode!, result.reason, new Vec3(0, 200, 0), new Color(255, 80, 80, 255));
+      }
+      this.onChanged();
+      return;
+    }
+
+    // 事故
+    if (result.mishap) {
+      this.spawnMishapEffect();
+      Fx.screenShake(this.root);
+    }
+
+    // 物品飞入待选区
+    const boxWorld = this.getBoxWorldPos(boxId);
+    for (const item of result.items) {
+      await this.spawnItemToFloor(item, boxWorld);
+    }
+    this.layoutFloor();
+
+    // 稀有/史诗特效
+    if (result.glow === 'gold' || result.glow === 'rainbow') {
+      await Fx.freeze(0.3);
+      Fx.flash(this.root, result.glow === 'gold' ? new Color(255, 220, 150, 180) : new Color(255, 150, 255, 180));
+      Fx.screenShake(this.root);
+      if (result.quip) {
+        Fx.floatText(this.viewNode!, result.quip, new Vec3(0, -40, 0), new Color(255, 255, 180, 255));
+      }
+    } else if (result.quip) {
+      Fx.floatText(this.viewNode!, result.quip, new Vec3(0, -40, 0));
+    }
+
+    this.onChanged();
+
+    if (result.event) {
+      this.onEvent(result.event);
+    } else if (result.collapsed) {
+      this.onChanged(); // GameRoot 会切换到 collapsed
+    }
+  }
+
+  private getBoxWorldPos(boxId: string): Vec3 {
+    const node = this.boxNodes.get(boxId);
+    if (!node) return new Vec3(0, 0, 0);
+    return node.getWorldPosition();
+  }
+
+  private spawnMishapEffect(): void {
+    if (!this.viewNode) return;
+    const isCat = Math.random() > 0.5;
+    const node = Art.makeVisual(isCat ? 'npc_cat' : 'ev_rain', 80, 80, isCat ? new Color(120, 120, 120, 220) : new Color(100, 200, 100, 200), isCat ? '喵' : '绿烟');
+    node.parent = this.viewNode;
+    node.setPosition(0, 80, 0);
+    Fx.shake(node, 12, 0.5);
+    tween(node).delay(1.2).call(() => node.destroy()).start();
+  }
+
+  private async spawnItemToFloor(item: ItemInst, fromWorld: Vec3): Promise<void> {
+    if (!this.floorContainer || !this.viewNode) return;
+    const def = ITEMS.find((i) => i.id === item.itemId);
+    const color = this.rarityColor(def?.rarity ?? 'common');
+    const node = this.createItemNode(item, def, color);
+    const floorLocalFrom = this.floorContainer.getComponent(UITransform)!.convertToNodeSpaceAR(fromWorld);
+    const target = this.getFloorSlotPosition(this.game.floor.indexOf(item));
+    node.parent = this.floorContainer;
+    node.setPosition(floorLocalFrom.x, floorLocalFrom.y, 0);
+    this.floorNodes.set(item.uid, node);
+    await Fx.popArc(node, floorLocalFrom, target, 0.5);
+  }
+
+  private createItemNode(item: ItemInst, def?: ItemDef, color?: Color): Node {
+    const fallbackColor = color ?? this.rarityColor(def?.rarity ?? 'common');
+    return Art.makeVisual(`icon_${item.itemId}`, 48, 48, fallbackColor, def?.name ?? item.itemId);
+  }
+
+  private rarityColor(rarity: Rarity): Color {
+    switch (rarity) {
+      case 'common': return new Color(170, 170, 170, 255);
+      case 'good': return new Color(100, 200, 120, 255);
+      case 'rare': return new Color(80, 160, 255, 255);
+      case 'epic': return new Color(200, 100, 255, 255);
+      case 'mishap': return new Color(220, 100, 100, 255);
+      default: return new Color(200, 200, 200, 255);
+    }
+  }
+
+  private getFloorSlotPosition(index: number): Vec3 {
+    const spacing = 70;
+    const totalW = (this.game.floor.length - 1) * spacing;
+    return new Vec3(-totalW / 2 + index * spacing, 0, 0);
+  }
+
+  private layoutFloor(): void {
+    if (!this.floorContainer) return;
+    const items = this.game.floor;
+    for (let i = 0; i < items.length; i++) {
+      const uid = items[i].uid;
+      const node = this.floorNodes.get(uid);
+      if (node) {
+        const target = this.getFloorSlotPosition(i);
+        tween(node).to(0.2, { position: target }).start();
+      }
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // 渲染待选区与背包
+  // ------------------------------------------------------------------
+  private renderFloor(): void {
+    if (!this.floorContainer) return;
+    this.floorContainer.children.forEach((child) => child.destroy());
+    this.floorNodes.clear();
+    this.game.floor.forEach((item, idx) => {
+      const def = ITEMS.find((i) => i.id === item.itemId);
+      const node = this.createItemNode(item, def);
+      node.parent = this.floorContainer;
+      const target = this.getFloorSlotPosition(idx);
+      node.setPosition(target.x, target.y, 0);
+      this.floorNodes.set(item.uid, node);
+      this.attachFloorTouch(node, item.uid);
+    });
+  }
+
+  private renderBag(): void {
+    if (!this.bagContainer) return;
+    this.bagContainer.children.forEach((child) => child.destroy());
+    this.bagNodes.clear();
+    this.drawBagGrid();
+    this.game.bag.forEach((placed) => {
+      const def = ITEMS.find((i) => i.id === placed.itemId);
+      const node = this.createItemNode(placed, def);
+      node.parent = this.bagContainer;
+      const pos = this.placedToLocal(placed.x, placed.y, placed.w, placed.h);
+      node.setPosition(pos.x, pos.y, 0);
+      this.bagNodes.set(placed.uid, node);
+      this.attachBagTouch(node, placed.uid);
+    });
+  }
+
+  private drawBagGrid(): void {
+    if (!this.bagContainer) return;
+    const g = this.bagContainer.addComponent(Graphics);
+    g.clear();
+    const w = this.game.bagW;
+    const h = this.game.bagH;
+    const totalW = w * CELL;
+    const totalH = h * CELL;
+    const startX = -totalW / 2;
+    const startY = totalH / 2;
+    g.strokeColor = new Color(255, 255, 255, 80);
+    g.lineWidth = 1;
+    for (let i = 0; i <= w; i++) {
+      const x = startX + i * CELL;
+      g.moveTo(x, startY);
+      g.lineTo(x, startY - totalH);
+    }
+    for (let j = 0; j <= h; j++) {
+      const y = startY - j * CELL;
+      g.moveTo(startX, y);
+      g.lineTo(startX + totalW, y);
+    }
+    g.stroke();
+  }
+
+  private placedToLocal(x: number, y: number, w: number, h: number): Vec3 {
+    const totalW = this.game.bagW * CELL;
+    const totalH = this.game.bagH * CELL;
+    const localX = -totalW / 2 + x * CELL + (w * CELL) / 2;
+    const localY = totalH / 2 - y * CELL - (h * CELL) / 2;
+    return new Vec3(localX, localY, 0);
+  }
+
+  private attachFloorTouch(node: Node, uid: number): void {
+    node.on(Node.EventType.TOUCH_START, (event: EventTouch) => this.onFloorTouchStart(event, uid), this);
+    node.on(Node.EventType.TOUCH_MOVE, (event: EventTouch) => this.onFloorTouchMove(event, uid), this);
+    node.on(Node.EventType.TOUCH_END, (event: EventTouch) => this.onFloorTouchEnd(event, uid), this);
+    node.on(Node.EventType.TOUCH_CANCEL, (event: EventTouch) => this.onFloorTouchCancel(event, uid), this);
+  }
+
+  private attachBagTouch(node: Node, uid: number): void {
+    node.on(Node.EventType.TOUCH_START, (event: EventTouch) => this.onBagTouchStart(event, uid), this);
+    node.on(Node.EventType.TOUCH_END, (event: EventTouch) => this.onBagTouchEnd(event, uid), this);
+    node.on(Node.EventType.TOUCH_CANCEL, (event: EventTouch) => this.onBagTouchCancel(event, uid), this);
+  }
+
+  // ------------------------------------------------------------------
+  // 待选区拖拽
+  // ------------------------------------------------------------------
+  private onFloorTouchStart(event: EventTouch, uid: number): void {
+    if (this.draggingUid !== null || this.holdBoxId) return;
+    const node = this.floorNodes.get(uid);
+    if (!node || !this.floorContainer) return;
+
+    this.potentialDrag = true;
+    this.isDragging = false;
+    this.touchStartPos = this.getTouchLocal(event, this.floorContainer);
+    this.touchStartTime = Date.now();
+    this.draggingUid = uid;
+    this.draggingNode = node;
+    this.dragOffset = new Vec3(node.position.x - this.touchStartPos.x, node.position.y - this.touchStartPos.y, 0);
+  }
+
+  private onFloorTouchMove(event: EventTouch, uid: number): void {
+    if (this.draggingUid !== uid || !this.potentialDrag || !this.floorContainer || !this.draggingNode) return;
+    const touchLocal = this.getTouchLocal(event, this.floorContainer);
+    const dist = Vec3.distance(this.touchStartPos, touchLocal);
+    if (dist > 20) {
+      this.isDragging = true;
+      this.potentialDrag = false;
+      // 将节点提升到 viewNode 以便拖拽不受容器裁剪影响
+      if (this.viewNode) {
+        const world = this.draggingNode.getWorldPosition();
+        const local = this.viewNode.getComponent(UITransform)!.convertToNodeSpaceAR(world);
+        this.draggingNode.setParent(this.viewNode);
+        this.draggingNode.setPosition(local.x, local.y, 0);
+      }
+    }
+    if (this.isDragging && this.draggingNode && this.viewNode) {
+      const touchView = this.getTouchLocal(event, this.viewNode);
+      this.draggingNode.setPosition(touchView.x + this.dragOffset.x, touchView.y + this.dragOffset.y, 0);
+    }
+  }
+
+  private onFloorTouchEnd(event: EventTouch, uid: number): void {
+    if (this.draggingUid !== uid) return;
+    const wasDragging = this.isDragging;
+    const node = this.draggingNode;
+    this.draggingUid = null;
+    this.draggingNode = null;
+    this.potentialDrag = false;
+    this.isDragging = false;
+
+    if (!wasDragging) {
+      // 单击打开菜单
+      this.showItemMenu(uid, false);
+      return;
+    }
+
+    // 尝试放置到背包
+    if (!node || !this.viewNode || !this.bagContainer) return;
+    const touchView = this.getTouchLocal(event, this.viewNode);
+    const dropResult = this.tryPlaceToBag(uid, touchView);
+    if (dropResult.success) {
+      Fx.floatText(this.viewNode, '咔', dropResult.pos, new Color(255, 255, 180, 255));
+      this.renderFloor();
+      this.renderBag();
+      this.onChanged();
+    } else {
+      // 失败：格子闪红，物品回原位
+      this.flashBagCell(dropResult.cell);
+      const floorLocal = dropResult.originalFloorPos;
+      if (this.floorContainer) {
+        node.setParent(this.floorContainer);
+        tween(node).to(0.25, { position: floorLocal }).start();
+      }
+      this.renderFloor(); // 重建以保证位置正确
+    }
+  }
+
+  private onFloorTouchCancel(event: EventTouch, uid: number): void {
+    if (this.draggingUid !== uid) return;
+    this.cancelDrag();
+  }
+
+  private cancelDrag(): void {
+    if (this.draggingNode && this.floorContainer) {
+      this.draggingNode.setParent(this.floorContainer);
+      // 回到原始 slot
+      const uid = this.draggingUid;
+      if (uid != null) {
+        const idx = this.game.floor.findIndex((i) => i.uid === uid);
+        if (idx >= 0) {
+          const target = this.getFloorSlotPosition(idx);
+          tween(this.draggingNode).to(0.2, { position: target }).start();
+        }
+      }
+    }
+    this.draggingUid = null;
+    this.draggingNode = null;
+    this.potentialDrag = false;
+    this.isDragging = false;
+  }
+
+  private tryPlaceToBag(uid: number, touchView: Vec3): {
+    success: boolean;
+    cell: { x: number; y: number } | null;
+    pos: Vec3;
+    originalFloorPos: Vec3;
+  } {
+    const item = this.game.floor.find((i) => i.uid === uid);
+    if (!item) return { success: false, cell: null, pos: new Vec3(), originalFloorPos: new Vec3() };
+    const def = ITEMS.find((i) => i.id === item.itemId);
+    if (!def) return { success: false, cell: null, pos: new Vec3(), originalFloorPos: new Vec3() };
+
+    const rotated = this.floorRotated.get(uid) ?? false;
+    const cell = this.cellFromViewTouch(touchView);
+    if (!cell) return { success: false, cell: null, pos: new Vec3(), originalFloorPos: new Vec3() };
+
+    const success = this.game.placeFromFloor(uid, cell.x, cell.y, rotated);
+    const placed = this.game.bag.find((p) => p.uid === uid);
+    const pos = placed ? this.placedToLocal(placed.x, placed.y, placed.w, placed.h) : new Vec3();
+    const originalIdx = this.game.floor.findIndex((i) => i.uid === uid); // may be -1
+    const originalFloorPos = originalIdx >= 0 ? this.getFloorSlotPosition(originalIdx) : new Vec3();
+    return { success, cell, pos, originalFloorPos };
+  }
+
+  private cellFromViewTouch(touchView: Vec3): { x: number; y: number } | null {
+    if (!this.bagContainer) return null;
+    // bagContainer 位置 (0, BAG_Y)，touchView 是 viewNode 局部坐标
+    const bagLocalX = touchView.x - this.bagContainer.position.x;
+    const bagLocalY = touchView.y - this.bagContainer.position.y;
+    const totalW = this.game.bagW * CELL;
+    const totalH = this.game.bagH * CELL;
+    const startX = -totalW / 2;
+    const startY = totalH / 2;
+    const relX = bagLocalX - startX;
+    const relY = startY - bagLocalY;
+    if (relX < 0 || relY < 0 || relX >= totalW || relY >= totalH) return null;
+    const x = Math.floor(relX / CELL);
+    const y = Math.floor(relY / CELL);
+    if (x < 0 || x >= this.game.bagW || y < 0 || y >= this.game.bagH) return null;
+    return { x, y };
+  }
+
+  private flashBagCell(cell: { x: number; y: number } | null): void {
+    if (!cell || !this.bagContainer) return;
+    const w = CELL;
+    const h = CELL;
+    const totalW = this.game.bagW * CELL;
+    const totalH = this.game.bagH * CELL;
+    const startX = -totalW / 2;
+    const startY = totalH / 2;
+    const x = startX + cell.x * CELL;
+    const y = startY - cell.y * CELL - CELL;
+
+    const flash = new Node('cell_flash');
+    flash.parent = this.bagContainer;
+    const fut = flash.addComponent(UITransform);
+    fut.setContentSize(w, h);
+    const fg = flash.addComponent(Graphics);
+    fg.fillColor = new Color(255, 80, 80, 160);
+    fg.rect(-w / 2, -h / 2, w, h);
+    fg.fill();
+    flash.setPosition(x + w / 2, y + h / 2, 0);
+    tween(flash).to(0.2, { scale: new Vec3(1.2, 1.2, 1) }).to(0.2, { scale: new Vec3(1, 1, 1) }).call(() => flash.destroy()).start();
+  }
+
+  // ------------------------------------------------------------------
+  // 背包物品点击
+  // ------------------------------------------------------------------
+  private onBagTouchStart(event: EventTouch, uid: number): void {
+    // 留空，避免事件穿透
+  }
+
+  private onBagTouchEnd(event: EventTouch, uid: number): void {
+    if (this.draggingUid !== null) return;
+    this.showItemMenu(uid, true);
+  }
+
+  private onBagTouchCancel(event: EventTouch, uid: number): void {
+    // 留空
+  }
+
+  // ------------------------------------------------------------------
+  // 物品菜单
+  // ------------------------------------------------------------------
+  private menuNode: Node | null = null;
+
+  private showItemMenu(uid: number, isBag: boolean): void {
+    this.closeMenu();
+    if (!this.viewNode) return;
+
+    let def: ItemDef | undefined;
+    if (isBag) {
+      const placed = this.game.bag.find((p) => p.uid === uid);
+      def = placed ? ITEMS.find((i) => i.id === placed.itemId) : undefined;
+    } else {
+      const item = this.game.floor.find((i) => i.uid === uid);
+      def = item ? ITEMS.find((i) => i.id === item.itemId) : undefined;
+    }
+    if (!def) return;
+
+    const menu = new Node('item_menu');
+    menu.parent = this.viewNode;
+    const mut = menu.addComponent(UITransform);
+    mut.setContentSize(260, 220);
+    menu.setPosition(0, 200, 0);
+    const dim = new Node('dim');
+    dim.parent = menu;
+    const dut = dim.addComponent(UITransform);
+    dut.setContentSize(720, 1280);
+    const dg = dim.addComponent(Graphics);
+    dg.fillColor = new Color(0, 0, 0, 120);
+    dg.rect(-360, -640, 720, 1280);
+    dg.fill();
+    dim.on(Node.EventType.TOUCH_START, () => this.closeMenu(), this);
+
+    const panel = new Node('panel');
+    panel.parent = menu;
+    const put = panel.addComponent(UITransform);
+    put.setContentSize(260, 220);
+    const pg = panel.addComponent(Graphics);
+    pg.fillColor = new Color(40, 40, 40, 235);
+    pg.roundRect(-130, -110, 260, 220, 12);
+    pg.fill();
+    pg.strokeColor = new Color(200, 200, 200, 255);
+    pg.lineWidth = 2;
+    pg.stroke();
+
+    const title = new Node('title');
+    const tut = title.addComponent(UITransform);
+    tut.setContentSize(240, 40);
+    const tl = title.addComponent(Label);
+    tl.string = def.name;
+    tl.fontSize = 26;
+    tl.lineHeight = 30;
+    tl.color = new Color(255, 255, 255, 255);
+    tl.horizontalAlign = Label.HorizontalAlign.CENTER;
+    tl.verticalAlign = Label.VerticalAlign.CENTER;
+    title.parent = panel;
+    title.setPosition(0, 80, 0);
+
+    const yStart = 20;
+    const yStep = -50;
+    let y = yStart;
+
+    if (def.edible) {
+      this.addMenuButton(panel, '吃掉', new Vec3(0, y, 0), () => {
+        this.game.eat(uid);
+        this.closeMenu();
+        this.renderFloor();
+        this.renderBag();
+        this.onChanged();
+      });
+      y += yStep;
+    }
+
+    if (isBag) {
+      this.addMenuButton(panel, '拿出', new Vec3(0, y, 0), () => {
+        this.game.moveToFloor(uid);
+        this.closeMenu();
+        this.renderFloor();
+        this.renderBag();
+        this.onChanged();
+      });
+      y += yStep;
+    } else {
+      this.addMenuButton(panel, '扔掉', new Vec3(0, y, 0), () => {
+        this.game.discard(uid);
+        this.closeMenu();
+        this.renderFloor();
+        this.onChanged();
+      });
+      y += yStep;
+
+      if (def.cells === 2) {
+        const item = this.game.floor.find((i) => i.uid === uid);
+        if (item) {
+          const rotated = this.floorRotated.get(uid) ?? false;
+          this.addMenuButton(panel, rotated ? '取消旋转' : '旋转', new Vec3(0, y, 0), () => {
+            this.floorRotated.set(uid, !rotated);
+            this.closeMenu();
+            this.renderFloor();
+          });
+        }
+      }
+    }
+
+    this.menuNode = menu;
+  }
+
+  private addMenuButton(parent: Node, text: string, pos: Vec3, onClick: () => void): void {
+    const btn = new Node('menu_btn');
+    const ut = btn.addComponent(UITransform);
+    ut.setContentSize(180, 40);
+    const g = btn.addComponent(Graphics);
+    g.fillColor = new Color(80, 80, 80, 220);
+    g.roundRect(-90, -20, 180, 40, 8);
+    g.fill();
+    const label = new Node('label');
+    const lut = label.addComponent(UITransform);
+    lut.setContentSize(180, 40);
+    const lb = label.addComponent(Label);
+    lb.string = text;
+    lb.fontSize = 22;
+    lb.lineHeight = 26;
+    lb.color = new Color(255, 255, 255, 255);
+    lb.horizontalAlign = Label.HorizontalAlign.CENTER;
+    lb.verticalAlign = Label.VerticalAlign.CENTER;
+    label.parent = btn;
+    label.setPosition(0, 0, 0);
+    btn.parent = parent;
+    btn.setPosition(pos.x, pos.y, 0);
+    btn.on(Node.EventType.TOUCH_START, () => onClick(), this);
+  }
+
+  private closeMenu(): void {
+    if (this.menuNode && this.menuNode.isValid) {
+      this.menuNode.destroy();
+    }
+    this.menuNode = null;
+  }
+
+  // ------------------------------------------------------------------
+  // 工具方法
+  // ------------------------------------------------------------------
+  private getTouchLocal(event: EventTouch, target: Node): Vec3 {
+    const uiLoc = event.getUILocation();
+    const local = target.getComponent(UITransform)?.convertToNodeSpaceAR(new Vec3(uiLoc.x, uiLoc.y, 0));
+    return local ?? new Vec3(0, 0, 0);
+  }
+}```

@@ -1,0 +1,7 @@
+仓库 /workspace/lingyuan15 第四轮复测问题，截图在 /workspace/ly15-shots/（r4_ 开头），请逐条修：
+1【画面】抢地盘小游戏结果文字重叠：「对方…离开」和「你赢了」叠在一起，压在变暗的选项按钮上，右侧露出粉色方块（点击区域调试色）。复现：day>=5 白石洲触发抢地盘，点「比谁掏得快」连点。结果只显示一段文字、放在独立区域，结果出现时隐藏/移除选项按钮和小游戏点击区域，点击区域不可见。
+2【逻辑】喂猫：game.ts cat 分支调用了 this.eat(foodUid)，玩家饱腹+10。改为只从背包移除一份食物、不加玩家饱腹。背包没有食物时「喂它」要给出提示（如“包里没吃的”）或该选项置灰不可点。补测试。
+3【逻辑】夜间温情：GameRoot.ts 约574行用 Math.random() 决定是否播动画，而 game.sleep() 用 rng.chance() 决定是否加数值，两者不一致；sleep() 里写 lastDayReport.warmth=true 后又把 lastDayReport 置空，标记读不到。改为由逻辑层决定并记录结果（不要被清空），UI 只读这个结果来播动画，走统一事件处理。补测试。
+4【可选】事件背景遮罩由纯黑改为半透明（约 70% 不透明）。
+5 新物品图标：小游戏ui/ux 已把 items_atlas 扩为 128x112，新增 17 个图标在第 34-50 格，原 34 个坐标不变，json 已更新；单张图在 /workspace/lingyuan_art/icons/，英文名与物品对应见 /workspace/lingyuan_art/README.md。把新图集和 json 同步进 cocos 资源（生成 sprite-frame meta，filter nearest），ArtMap.ts 里那 17 种物品改用各自专属图标，替换之前的近似图。另外在物品详情/点击菜单里显示物品中文名（如果还没有）。
+完成后跑测试和 npx tsc -p cocos/tsconfig.check.json，都通过后 git commit，报告每条修法和提交号。

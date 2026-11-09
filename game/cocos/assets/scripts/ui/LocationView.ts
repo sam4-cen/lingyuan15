@@ -14,6 +14,7 @@ import {
   view,
   Sprite,
   LabelOutline,
+  isValid,
 } from 'cc';
 import { Game, Box, ItemInst, Placed, PendingEvent, DigResult } from '../core/game';
 import { CONFIG, ITEMS, LOCATIONS, ItemDef, Rarity } from '../core/config';
@@ -26,18 +27,16 @@ import { Sfx } from './Sfx';
 const { ccclass } = _decorator;
 
 const CELL = 80;
-// 地面/背包图标都是 16px 原图 ×4 = 64px
-const FLOOR_ICON = 64;
-const FLOOR_PLATE = 72;
-const FLOOR_GLOW = 88;
+// 背包固定 16px 原图 ×4 = 64px；地面按物品数量在 128~32 之间取整数倍
 const BAG_ICON = 64;
 const BAG_PLATE = 72;
 const BAG_GLOW = 80;
 const SMALL_BOX = 96;
 const BIG_BOX = 144;
-const FLOOR_Y = -60;
-const BAG_Y = -300;
-const HOLD_UI_Y = -500;
+const FLOOR_Y = 0;
+const FLOOR_ROW_Y = -86;
+const BAG_Y = -340;
+const HOLD_UI_Y = -505;
 const BOX_Y = 330;
 const BOX_COLS = 3;
 
@@ -96,6 +95,8 @@ export class LocationView {
   private floorRotated: Map<number, boolean> = new Map();
 
   private menuNode: Node | null = null;
+  /** 每次 show/hide 递增；异步流程在每个 await 后检查，旧流程自动放弃。 */
+  private sessionToken: number = 0;
 
   constructor(
     root: Node,
@@ -164,6 +165,7 @@ export class LocationView {
   }
 
   public hide(): void {
+    this.sessionToken++;
     if (this.holdBoxId) this.stopHold(true);
     if (this.isDragging) this.cancelDrag();
     this.closeMenu();
@@ -172,6 +174,9 @@ export class LocationView {
       this.viewNode.destroy();
       this.viewNode = null;
     }
+    this.boxContainer = null;
+    this.floorContainer = null;
+    this.bagContainer = null;
     this.boxNodes.clear();
     this.floorNodes.clear();
     this.bagNodes.clear();
@@ -186,6 +191,15 @@ export class LocationView {
     this.hoverCell = null;
     this.badCells = [];
     this.badCellAlpha = 1;
+  }
+
+  private isAlive(token: number): boolean {
+    return (
+      token === this.sessionToken &&
+      !!this.viewNode &&
+      this.viewNode.isValid &&
+      isValid(this.viewNode, true)
+    );
   }
 
   // ------------------------------------------------------------------
@@ -209,7 +223,7 @@ export class LocationView {
     const outline = hint.addComponent(LabelOutline);
     outline.color = new Color(255, 246, 220, 230);
     outline.width = 2;
-    hint.setPosition(0, 42, 0);
+    hint.setPosition(0, -163, 0);
   }
 
   private createButtons(): void {
@@ -565,38 +579,46 @@ export class LocationView {
   // 挖盒子动画与结果处理
   // ------------------------------------------------------------------
   private async performDig(boxId: string, holdSec: number): Promise<void> {
+    const token = this.sessionToken;
     const boxNode = this.boxNodes.get(boxId);
     const box = this.game.boxesAt(this.game.location!).find((b) => b.id === boxId);
-    if (!boxNode || !box) return;
+    if (!boxNode || !box || !isValid(boxNode, true)) return;
 
     // 盒子开启动画
     if (box.size === 'small') {
       Fx.pulse(boxNode, 1.3, 0.15);
       await Fx.freeze(0.2);
+      if (!this.isAlive(token)) return;
       await Fx.fadeOut(boxNode, 0.2);
     } else {
       Fx.pulse(boxNode, 1.5, 0.25);
       await Fx.freeze(0.15);
+      if (!this.isAlive(token)) return;
 
       // 松手大盒播 lid_pop
-      if (boxNode.parent) {
+      if (boxNode.parent && isValid(boxNode.parent, true)) {
         const lidPop = Art.makeVisual('lid_pop', BIG_BOX, BIG_BOX, new Color(200, 180, 120, 255));
         lidPop.parent = boxNode.parent;
         lidPop.setPosition(boxNode.position.x, boxNode.position.y, 0);
         Art.play(lidPop, 'lid_pop', 10, false);
         await Fx.freeze(0.6);
         if (lidPop.isValid) lidPop.destroy();
+        if (!this.isAlive(token)) return;
       }
 
       await Fx.freeze(0.2);
+      if (!this.isAlive(token)) return;
       await Fx.fadeOut(boxNode, 0.3);
     }
-    boxNode.active = false;
+    if (!this.isAlive(token)) return;
+    if (boxNode.isValid) boxNode.active = false;
 
+    // 视图已经切走/游戏结束就不再结算这次挖盒
+    if (this.game.phase !== 'location') return;
     const result = this.game.dig(boxId, holdSec);
     if (!result.ok) {
-      if (result.reason) {
-        Fx.floatText(this.viewNode!, result.reason, new Vec3(0, 200, 0), new Color(255, 80, 80, 255));
+      if (result.reason && this.viewNode) {
+        Fx.floatText(this.viewNode, result.reason, new Vec3(0, 200, 0), new Color(255, 80, 80, 255));
       }
       this.onChanged();
       return;
@@ -612,13 +634,16 @@ export class LocationView {
     const boxWorld = this.getBoxWorldPos(boxId);
     let hasRare = false;
     for (const item of result.items) {
-      const node = await this.spawnItemToFloor(item, boxWorld);
+      if (!this.isAlive(token)) return;
+      const node = await this.spawnItemToFloor(item, boxWorld, token);
+      if (!this.isAlive(token)) return;
       const def = ITEMS.find((i) => i.id === item.itemId);
       if (node && def && (def.rarity === 'rare' || def.rarity === 'epic')) {
         hasRare = true;
-        await this.showRareReveal(node, def);
+        await this.showRareReveal(node, def, token);
       }
     }
+    if (!this.isAlive(token)) return;
     this.layoutFloor();
 
     // 稀有/史诗开奖特效（冻结已在每件物品上做过）
@@ -626,11 +651,13 @@ export class LocationView {
       Fx.flash(this.root, result.glow === 'gold' ? new Color(255, 220, 150, 180) : new Color(255, 150, 255, 180));
       Fx.screenShake(this.root);
     }
-    if (!hasRare && result.quip) {
-      Fx.floatText(this.viewNode!, result.quip, new Vec3(0, -40, 0));
+    if (!hasRare && result.quip && this.viewNode) {
+      Fx.floatText(this.viewNode, result.quip, new Vec3(0, -40, 0));
     }
 
     this.onChanged();
+    // onChanged 可能刷新到失败/倒下页并销毁本视图
+    if (!this.isAlive(token)) return;
 
     if (result.event) {
       this.onEvent(result.event);
@@ -656,6 +683,8 @@ export class LocationView {
   }
 
   private createPopFlash(parent: Node, pos: Vec3): void {
+    // 失败/切场景后 floorContainer 已被销毁，不能再 setParent
+    if (!parent || !isValid(parent, true)) return;
     if (Art.frames('pop_flash').length > 0) {
       const fx = Art.makeVisual('pop_flash', 64, 64, Color.WHITE);
       fx.parent = parent;
@@ -686,8 +715,12 @@ export class LocationView {
       .start();
   }
 
-  private async spawnItemToFloor(item: ItemInst, fromWorld: Vec3): Promise<Node | null> {
-    if (!this.floorContainer || !this.viewNode) return null;
+  private async spawnItemToFloor(
+    item: ItemInst,
+    fromWorld: Vec3,
+    token: number,
+  ): Promise<Node | null> {
+    if (!this.isAlive(token) || !this.floorContainer || !this.viewNode) return null;
     const def = ITEMS.find((i) => i.id === item.itemId);
     const color = this.rarityColor(def?.rarity ?? 'common');
     const node = this.createItemNode(item, def, color, 'floor');
@@ -699,6 +732,10 @@ export class LocationView {
     this.floorNodes.set(item.uid, node);
     this.attachFloorTouch(node, item.uid);
     await Fx.popArc(node, floorLocalFrom, target, 0.5);
+    if (!this.isAlive(token) || !this.floorContainer || !isValid(this.floorContainer, true)) {
+      if (node.isValid) node.destroy();
+      return null;
+    }
 
     // 物品弹出闪光 pop_flash（fx_item_pop 序列帧，缺图时退回代码闪光）
     const flashLocalPos = new Vec3(target.x, target.y, 0);
@@ -707,8 +744,8 @@ export class LocationView {
   }
 
   /** 稀有物品开奖：放大高亮 + 名称/吐槽面板 + 真冻结 0.3s。 */
-  private async showRareReveal(node: Node, def: ItemDef): Promise<void> {
-    if (!this.viewNode || !node.isValid) return;
+  private async showRareReveal(node: Node, def: ItemDef, token: number): Promise<void> {
+    if (!this.isAlive(token) || !this.viewNode || !node.isValid) return;
     const viewUt = this.viewNode.getComponent(UITransform);
     if (!viewUt) return;
     const local = viewUt.convertToNodeSpaceAR(node.getWorldPosition());
@@ -761,9 +798,12 @@ export class LocationView {
   ): Node {
     const fallbackColor = color ?? this.rarityColor(def?.rarity ?? 'common');
     const isFloor = context === 'floor';
-    const iconSize = isFloor ? FLOOR_ICON : BAG_ICON;
-    const plateSize = isFloor ? FLOOR_PLATE : BAG_PLATE;
-    const glowSize = isFloor ? FLOOR_GLOW : BAG_GLOW;
+    const style = isFloor
+      ? this.floorStyle()
+      : { icon: BAG_ICON, plate: BAG_PLATE, glow: BAG_GLOW };
+    const iconSize = style.icon;
+    const plateSize = style.plate;
+    const glowSize = style.glow;
     const rarity = def?.rarity ?? 'common';
 
     const root = uiNode(`item_${item.itemId}`);
@@ -785,6 +825,16 @@ export class LocationView {
     if (gsp) gsp.color = glowInfo.color;
     const gop = glow.getComponent(UIOpacity) ?? glow.addComponent(UIOpacity);
     gop.opacity = 220;
+
+    // 图标下方的半透明圆形落影，压住橄榄绿背景
+    const shadow = uiNode('shadow');
+    shadow.parent = root;
+    const sUt = shadow.addComponent(UITransform);
+    sUt.setContentSize(plateSize + 8, plateSize + 8);
+    const sg = shadow.addComponent(Graphics);
+    sg.fillColor = new Color(0, 0, 0, 120);
+    sg.circle(0, 0, plateSize / 2 + 4);
+    sg.fill();
 
     // #000 alpha 0.55 的圆角底板
     const plate = uiNode('plate');
@@ -814,8 +864,8 @@ export class LocationView {
     const outUt = outline.addComponent(UITransform);
     outUt.setContentSize(iconSize, iconSize);
     const og = outline.addComponent(Graphics);
-    og.strokeColor = new Color(0, 0, 0, 220);
-    og.lineWidth = 1;
+    og.strokeColor = new Color(0, 0, 0, 245);
+    og.lineWidth = 2;
     og.rect(-iconSize / 2, -iconSize / 2, iconSize, iconSize);
     og.stroke();
 
@@ -849,21 +899,31 @@ export class LocationView {
     }
   }
 
+  /** 地面物品按数量选 16px 的整数倍：4 件以内 128，更多时逐级缩小。 */
+  private floorStyle(): { icon: number; plate: number; glow: number } {
+    const n = Math.max(1, this.game.floor.length);
+    const safeW = Math.min(720, UILayout.visibleW) - 56;
+    const sizes = [128, 112, 96, 80, 64, 48, 32];
+    for (const icon of sizes) {
+      const plate = icon + 2;
+      if (n * plate + Math.max(0, n - 1) * 4 <= safeW) {
+        return { icon, plate, glow: icon + 32 };
+      }
+    }
+    return { icon: 32, plate: 36, glow: 64 };
+  }
+
   private getFloorSlotPosition(index: number): Vec3 {
     const n = Math.max(1, this.game.floor.length);
-    const perRow = 6;
-    const row = Math.floor(index / perRow);
-    const col = index % perRow;
-    const inRow = Math.min(perRow, Math.max(1, n - row * perRow));
+    const style = this.floorStyle();
     const safeW = Math.min(720, UILayout.visibleW) - 56;
-    // 地面图标 64 + 72 底板 + 88 光环，间距至少 92，避免相邻物品叠在一起
-    const spacing = Math.max(92, Math.min(100, safeW / Math.max(1, inRow)));
-    const x = (col - (inRow - 1) / 2) * spacing;
-    return new Vec3(x, 50 - row * 88, 0);
+    const spacing = n <= 1 ? 0 : Math.min(style.plate + 4, safeW / (n - 1));
+    const totalW = (n - 1) * spacing;
+    return new Vec3(-totalW / 2 + index * spacing, FLOOR_ROW_Y, 0);
   }
 
   private layoutFloor(): void {
-    if (!this.floorContainer) return;
+    if (!this.floorContainer || !isValid(this.floorContainer, true)) return;
     const items = this.game.floor;
     for (let i = 0; i < items.length; i++) {
       const uid = items[i].uid;
@@ -879,7 +939,7 @@ export class LocationView {
   // 渲染待选区与背包
   // ------------------------------------------------------------------
   private renderFloor(): void {
-    if (!this.floorContainer) return;
+    if (!this.floorContainer || !isValid(this.floorContainer, true)) return;
     this.floorContainer.children.forEach((child) => child.destroy());
     this.floorNodes.clear();
     this.game.floor.forEach((item, idx) => {
@@ -895,7 +955,7 @@ export class LocationView {
   }
 
   private renderBag(): void {
-    if (!this.bagContainer) return;
+    if (!this.bagContainer || !isValid(this.bagContainer, true)) return;
     this.bagContainer.children.forEach((child) => child.destroy());
     this.bagNodes.clear();
 
@@ -921,7 +981,7 @@ export class LocationView {
 
   /** 被抓等事件清空背包时，同步销毁 UI 里的物品节点。 */
   public clearBagView(): void {
-    if (!this.bagContainer) return;
+    if (!this.bagContainer || !isValid(this.bagContainer, true)) return;
     for (const node of this.bagNodes.values()) {
       if (node && node.isValid) node.destroy();
     }
@@ -930,7 +990,12 @@ export class LocationView {
   }
 
   private redrawBagCells(): void {
-    if (!this.bagGridGraphics || !this.bagGridNode) return;
+    if (
+      !this.bagGridGraphics ||
+      !this.bagGridNode ||
+      !this.bagGridNode.isValid ||
+      !isValid(this.bagGridNode, true)
+    ) return;
     const g = this.bagGridGraphics;
     g.clear();
     const w = this.game.bagW;

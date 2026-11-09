@@ -1,4 +1,4 @@
-import { Color, Graphics, Label, Node, Tween, UIOpacity, UITransform, Vec3, tween, view } from 'cc';
+import { Color, Graphics, Label, Node, Tween, UIOpacity, UITransform, Vec3, tween, view, isValid } from 'cc';
 import { Game, PendingEvent } from '../core/game';
 import { Art } from './Art';
 import { uiNode } from './UI';
@@ -37,9 +37,19 @@ export class EventView {
 
     this.playIntro(stage, game, ev, root)
       .then(async () => {
+        if (!this.alive(container, stage)) {
+          this.cleanup(dim, container);
+          done();
+          return;
+        }
         const choice = await this.showOptions(stage, root, ev, game);
         // 关键：选项确定后立刻结算游戏状态，再播结果动画
         game.resolveEvent(choice.optionIndex, choice.minigameWin);
+        if (!this.alive(container, stage)) {
+          this.cleanup(dim, container);
+          done();
+          return;
+        }
         await this.playResult(stage, root, game, ev, choice.optionIndex, choice.minigameWin, game.lastEventNotice);
         this.cleanup(dim, container);
         done();
@@ -48,6 +58,13 @@ export class EventView {
         this.cleanup(dim, container);
         done();
       });
+  }
+
+  private static alive(container: Node, stage: Node): boolean {
+    return (
+      !!container && container.isValid && isValid(container, true) &&
+      !!stage && stage.isValid && isValid(stage, true)
+    );
   }
 
   private static cleanup(dim: Node, container: Node): void {
@@ -191,6 +208,9 @@ export class EventView {
 
   // ---------------- 选项 ----------------
   private static async showOptions(stage: Node, root: Node, ev: PendingEvent, game: Game): Promise<{ optionIndex: number; minigameWin: boolean }> {
+    if (!stage || !stage.isValid || !isValid(stage, true)) {
+      return { optionIndex: 0, minigameWin: false };
+    }
     const w = stage.getComponent(UITransform)!.width;
     const h = stage.getComponent(UITransform)!.height;
     const layer = uiNode('option_layer');
@@ -234,6 +254,7 @@ export class EventView {
   }
 
   private static async runMinigame(stage: Node, root: Node): Promise<boolean> {
+    if (!stage || !stage.isValid || !isValid(stage, true)) return false;
     const w = stage.getComponent(UITransform)!.width;
     const h = stage.getComponent(UITransform)!.height;
     const layer = uiNode('minigame');
@@ -259,6 +280,11 @@ export class EventView {
     const duration = 3000;
     return new Promise<boolean>((resolve) => {
       const tick = setInterval(() => {
+        if (!layer || !layer.isValid || !isValid(layer, true)) {
+          clearInterval(tick);
+          resolve(false);
+          return;
+        }
         const elapsed = Date.now() - start;
         if (elapsed >= duration) {
           clearInterval(tick);
@@ -272,6 +298,7 @@ export class EventView {
 
   // ---------------- 结果动画 ----------------
   private static async playResult(stage: Node, root: Node, game: Game, ev: PendingEvent, optionIndex: number, minigameWin: boolean, notice?: string): Promise<void> {
+    if (!stage || !stage.isValid || !isValid(stage, true)) return;
     const w = stage.getComponent(UITransform)!.width;
     const artName = `ev_${ev.id}`;
     const artNode = stage.getChildByName(artName);
@@ -380,7 +407,7 @@ export class EventView {
 
   private static rect(parent: Node, name: string, w: number, h: number, color: Color): Node {
     const n = uiNode(name);
-    n.parent = parent;
+    if (parent && parent.isValid && isValid(parent, true)) n.parent = parent;
     const ut = n.addComponent(UITransform);
     ut.setContentSize(w, h);
     const g = n.addComponent(Graphics);
@@ -412,7 +439,7 @@ export class EventView {
 
   private static label(parent: Node, text: string, fontSize: number, x: number, y: number): Node {
     const n = uiNode('label');
-    n.parent = parent;
+    if (parent && parent.isValid && isValid(parent, true)) n.parent = parent;
     const ut = n.addComponent(UITransform);
     ut.setContentSize(300, fontSize + 12);
     n.setPosition(x, y, 0);
@@ -429,7 +456,7 @@ export class EventView {
 
   private static makeButton(parent: Node, text: string, w: number, h: number, onClick: () => void): Node {
     const n = uiNode('ev_btn');
-    n.parent = parent;
+    if (parent && parent.isValid && isValid(parent, true)) n.parent = parent;
     const ut = n.addComponent(UITransform);
     ut.setContentSize(w, h);
     const g = n.addComponent(Graphics);

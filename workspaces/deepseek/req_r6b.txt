@@ -1,0 +1,4 @@
+Round 6b refinements (apply on top of round 6, then run tests + tsc, sync core, commit):
+1) Map location screen: show NO box counts / big-box counts at all. Show only the fortune's vague text hint per fortune grade (good/bad/terrible slip wording, e.g. "东门今天好像热闹点", "南山感觉不太妙"). Boxes are generated and shown only after entering the location. Fortune effect on loot is kept.
+2) Loot reveal icons: scale icons 3x integer (16->48px) with nearest filtering (no blur); under each, a semi-transparent dark rounded backing plate (#000 alpha 0.55, 56x56); 1px dark outline on the icon; an outer glow ring in rarity color (white/blue/gold/rainbow), reuse fx/glow_* sprites. Backpack cell icons: 2x integer scale, ensure contrast with the cell background color.
+Report each change and the commit hash.

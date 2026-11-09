@@ -1,0 +1,10 @@
+Round 10 for /workspace/lingyuan15. Code-only (do not regenerate art assets). Run tests + tsc, sync core if touched, commit.
+A) Loot / backpack display (post-open items):
+1) Floor loot icons about 2× current size (if still ~64px, go to ~128px; integer nearest scale of 16px source). Backpack icons fill about 80% of each cell (80px cells → icon ~64px is already ~80%; if cells differ, target ~80% of the occupied footprint).
+2) Every item: darker outline + a semi-transparent dark circular drop-shadow plate under the icon (fixes clash with olive-green background). Keep existing plate/outline if present but make outline darker and add the under-icon round shadow.
+3) Rarity glow rings: white / blue / gold (and keep rainbow for epic if already present). On BOTH floor loot and backpack.
+4) Floor loot layout: do NOT stack items in the center of the screen covering location title text (e.g. "世界之窗地铁站"). Lay them out in the empty area ABOVE the backpack, with clear spacing so icons never overlap each other or the title.
+B) Previously blocked bugs (must include):
+5) createPopFlash / setParent null crash after await when fail page / scene tears down (day-5 starve path). Guard with isValid(parent); audit all post-await node creates (box open, rare freeze, float texts); cancel pending async on teardown; Fx.sceneFreeze must always resume director/input.
+6) Fail-page death line "舍不得吃那块半块蛋挞" must not split "蛋挞" across lines; check other death texts.
+Report each fix and the commit hash.

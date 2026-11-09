@@ -649,11 +649,15 @@ export class GameRoot extends Component {
     card.parent = this.screenRoot;
     card.setPosition(0, 100, 0);
     const content = card.getChildByName('content')!;
-    this.addCardText(content, 24, [
+    // 死因按中文逗号拆行，避免「蛋挞」这种词被行宽切到两行
+    const causeParts = this.game.deathCause.split('，');
+    const deathLines = [
       `你在深圳活了 ${this.game.day} 天`,
-      `死因：${this.game.deathCause}`,
+      `死因：${causeParts[0] ?? ''}`,
+      ...causeParts.slice(1),
       `最离谱收获：${this.game.lastDayReport?.bestItem ?? '无'}`,
-    ], new Color(50, 50, 50, 255));
+    ];
+    this.addCardText(content, 22, deathLines, new Color(50, 50, 50, 255));
 
     const retryBtn = this.createButton('再来一局', 160, 60, new Vec3(-120, -320, 0), () => {
       this.game.startGame();
@@ -735,7 +739,7 @@ export class GameRoot extends Component {
   }
 
   private addCardText(parent: Node, fontSize: number, lines: string[], color: Color): void {
-    const textNode = this.createWorldLabel(lines.join('\n'), fontSize, color, Vec3.ZERO, 400, 400);
+    const textNode = this.createWorldLabel(lines.join('\n'), fontSize, color, Vec3.ZERO, 520, 400);
     textNode.parent = parent;
     textNode.setPosition(0, 0, 0);
   }

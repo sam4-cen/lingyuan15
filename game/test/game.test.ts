@@ -741,11 +741,18 @@ test('背包格子中心计算：单格/多格/锚点', () => {
   assert.deepEqual(bottomLeft, { x: -64, y: 56 });
 });
 
-test('音效文件存在且小于 20KB', () => {
+test('音效文件存在、小于 20KB 且带 audio-clip meta', () => {
+  const uuids = new Set<string>();
   for (const name of ['snap.wav', 'bounce.wav']) {
     const file = path.resolve(process.cwd(), 'cocos/assets/resources/sfx', name);
     assert.ok(fs.existsSync(file), `${name} 不存在`);
     const size = fs.statSync(file).size;
     assert.ok(size > 0 && size < 20 * 1024, `${name} 大小 ${size}`);
+    const metaPath = file + '.meta';
+    assert.ok(fs.existsSync(metaPath), `${name}.meta 不存在`);
+    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+    assert.equal(meta.importer, 'audio-clip');
+    assert.ok(meta.uuid && !uuids.has(meta.uuid), `${name} uuid 应唯一`);
+    uuids.add(meta.uuid);
   }
 });

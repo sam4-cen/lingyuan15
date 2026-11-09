@@ -12,6 +12,8 @@ node_modules/
 # 日志
 *.log
 npm-debug.log*
+# 工作区交接里的 harness 日志需要入库
+!workspaces/**/*.log
 
 # 系统文件
 .DS_Store

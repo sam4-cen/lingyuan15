@@ -19,7 +19,15 @@
 ├── scripts/          辅助脚本
 └── test/             测试资源
     └── lingyuan15_qr.png  小程序二维码
+├── workspaces/       机器人工作区交接
+│   ├── deepseek/     DeepSeek 需求、补丁、设计稿、场景与网页测试构建、harness 日志
+│   └── tester/       测试机器人工作区（最新预览二维码）
 ```
+
+## 工作区
+
+- `workspaces/deepseek/`：DeepSeek 机器人工作区。含 `req_r*` 需求记录、补丁、设计文档（v1/v2）、`ly15scene`、`ly15web_srv` 网页测试构建，以及已脱敏的 harness 日志与会话。
+- `workspaces/tester/`：测试机器人工作区，含最新预览二维码。测试截图仍在 `test/shots/`。
 
 ## 关键文档
 

@@ -1,0 +1,6 @@
+Round 8 icon fixes for /workspace/lingyuan15. Run tests + tsc, sync core if touched, commit.
+1) Floor loot icons: enlarge the icon itself to 64x64 (integer scale of the 16px source x4, nearest filtering). Plate becomes 72x72 #000 alpha 0.55 rounded, 1px dark outline, rarity glow ring scaled to match. Keep floor spacing so nothing overlaps.
+2) Backpack icons: BAG_ICON is 32 (plate 40) but cells are 80px. Make the icon 64x64 (x4 nearest) with a ~72px plate, centered in the cell; multi-cell items scale/center to their footprint accordingly, rotation still works.
+3) Add the same rarity glow ring (fx/glow_*) to backpack items, as on floor items.
+4) The two WAV sfx files (snap, bounce) have no .meta files. Create proper Cocos Creator 3.8 .meta files for them (importer audio-clip, unique uuid) so builds are stable.
+Report each fix and the commit hash.

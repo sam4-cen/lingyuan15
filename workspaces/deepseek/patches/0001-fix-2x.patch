@@ -1,0 +1,625 @@
+From 9440b5aab131492fa011ed0fc50c34a9feb41959 Mon Sep 17 00:00:00 2001
+From: DeepSeek <deepseek@laohuadian.local>
+Date: Thu, 5 Nov 2026 17:26:26 +0800
+Subject: [PATCH] =?UTF-8?q?fix:=20=E5=BC=82=E6=AD=A5=E6=8B=86=E5=9C=BA?=
+ =?UTF-8?q?=E6=99=AF=E5=B4=A9=E6=BA=83/=E6=AD=BB=E4=BA=A1=E6=96=87?=
+ =?UTF-8?q?=E6=A1=88=E6=8D=A2=E8=A1=8C=20+=20=E5=9C=B0=E9=9D=A2=202x=20?=
+ =?UTF-8?q?=E5=9B=BE=E6=A0=87=E4=B8=8E=E9=98=B2=E9=87=8D=E5=8F=A0=E5=B8=83?=
+ =?UTF-8?q?=E5=B1=80?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+r9:
+- LocationView 增加 sessionToken，每个 await 后检查视图是否仍存活；hide/refresh 后旧挖盒流程直接放弃
+- createPopFlash 先 isValid(parent, true) 再挂载；spawnItemToFloor/showRareReveal/lidPop/floatText/flash 全部加存活与父节点校验
+- Fx.popArc/fadeOut 增加超时兜底 resolve；Fx.sceneFreeze 用 try/catch 并在 setTimeout 中无条件 resume director
+- EventView 的 show/选项/结果/小游戏计时器/rect/label/makeButton 增加 isValid 守卫
+- 失败卡死因按中文逗号拆行，并把文字宽度加到 520、字号 22，避免「半块蛋挞」被拆开
+
+r10:
+- 地面战利品图标 64→128（16px×8 nearest），底板/描边/阴影随图标缩放；按数量自适应 128/112/96/80/64/48/32，单行排列在背包上方，间距不重叠
+- 背包图标保持 64（80px 格的 80%），底板 72，旋转仍按 1×2/2×1 显示
+- 地面和背包统一加 #000 55% 圆角底板、2px 深色描边和半透明圆形落影
+- 地面与背包都保留白/蓝/金/彩虹稀有度光环
+- 地面战利品行移到背包上方（y=-86），地点标题区域不再被遮挡
+
+验证：53/53 测试通过，cocos tsc 0 错误，src/core 已同步
+---
+ cocos/assets/scripts/GameRoot.ts        |  12 +-
+ cocos/assets/scripts/ui/EventView.ts    |  35 +++++-
+ cocos/assets/scripts/ui/Fx.ts           |  33 +++++-
+ cocos/assets/scripts/ui/LocationView.ts | 143 +++++++++++++++++-------
+ test/game.test.ts                       |   9 +-
+ 5 files changed, 179 insertions(+), 53 deletions(-)
+
+diff --git a/cocos/assets/scripts/GameRoot.ts b/cocos/assets/scripts/GameRoot.ts
+index bb4c709..907a249 100644
+--- a/cocos/assets/scripts/GameRoot.ts
++++ b/cocos/assets/scripts/GameRoot.ts
+@@ -649,11 +649,15 @@ export class GameRoot extends Component {
+     card.parent = this.screenRoot;
+     card.setPosition(0, 100, 0);
+     const content = card.getChildByName('content')!;
+-    this.addCardText(content, 24, [
++    // 死因按中文逗号拆行，避免「蛋挞」这种词被行宽切到两行
++    const causeParts = this.game.deathCause.split('，');
++    const deathLines = [
+       `你在深圳活了 ${this.game.day} 天`,
+-      `死因：${this.game.deathCause}`,
++      `死因：${causeParts[0] ?? ''}`,
++      ...causeParts.slice(1),
+       `最离谱收获：${this.game.lastDayReport?.bestItem ?? '无'}`,
+-    ], new Color(50, 50, 50, 255));
++    ];
++    this.addCardText(content, 22, deathLines, new Color(50, 50, 50, 255));
+ 
+     const retryBtn = this.createButton('再来一局', 160, 60, new Vec3(-120, -320, 0), () => {
+       this.game.startGame();
+@@ -735,7 +739,7 @@ export class GameRoot extends Component {
+   }
+ 
+   private addCardText(parent: Node, fontSize: number, lines: string[], color: Color): void {
+-    const textNode = this.createWorldLabel(lines.join('\n'), fontSize, color, Vec3.ZERO, 400, 400);
++    const textNode = this.createWorldLabel(lines.join('\n'), fontSize, color, Vec3.ZERO, 520, 400);
+     textNode.parent = parent;
+     textNode.setPosition(0, 0, 0);
+   }
+diff --git a/cocos/assets/scripts/ui/EventView.ts b/cocos/assets/scripts/ui/EventView.ts
+index e629af1..0652b33 100644
+--- a/cocos/assets/scripts/ui/EventView.ts
++++ b/cocos/assets/scripts/ui/EventView.ts
+@@ -1,4 +1,4 @@
+-import { Color, Graphics, Label, Node, Tween, UIOpacity, UITransform, Vec3, tween, view } from 'cc';
++import { Color, Graphics, Label, Node, Tween, UIOpacity, UITransform, Vec3, tween, view, isValid } from 'cc';
+ import { Game, PendingEvent } from '../core/game';
+ import { Art } from './Art';
+ import { uiNode } from './UI';
+@@ -37,9 +37,19 @@ export class EventView {
+ 
+     this.playIntro(stage, game, ev, root)
+       .then(async () => {
++        if (!this.alive(container, stage)) {
++          this.cleanup(dim, container);
++          done();
++          return;
++        }
+         const choice = await this.showOptions(stage, root, ev, game);
+         // 关键：选项确定后立刻结算游戏状态，再播结果动画
+         game.resolveEvent(choice.optionIndex, choice.minigameWin);
++        if (!this.alive(container, stage)) {
++          this.cleanup(dim, container);
++          done();
++          return;
++        }
+         await this.playResult(stage, root, game, ev, choice.optionIndex, choice.minigameWin, game.lastEventNotice);
+         this.cleanup(dim, container);
+         done();
+@@ -50,6 +60,13 @@ export class EventView {
+       });
+   }
+ 
++  private static alive(container: Node, stage: Node): boolean {
++    return (
++      !!container && container.isValid && isValid(container, true) &&
++      !!stage && stage.isValid && isValid(stage, true)
++    );
++  }
++
+   private static cleanup(dim: Node, container: Node): void {
+     if (dim && dim.isValid) dim.destroy();
+     if (container && container.isValid) container.destroy();
+@@ -191,6 +208,9 @@ export class EventView {
+ 
+   // ---------------- 选项 ----------------
+   private static async showOptions(stage: Node, root: Node, ev: PendingEvent, game: Game): Promise<{ optionIndex: number; minigameWin: boolean }> {
++    if (!stage || !stage.isValid || !isValid(stage, true)) {
++      return { optionIndex: 0, minigameWin: false };
++    }
+     const w = stage.getComponent(UITransform)!.width;
+     const h = stage.getComponent(UITransform)!.height;
+     const layer = uiNode('option_layer');
+@@ -234,6 +254,7 @@ export class EventView {
+   }
+ 
+   private static async runMinigame(stage: Node, root: Node): Promise<boolean> {
++    if (!stage || !stage.isValid || !isValid(stage, true)) return false;
+     const w = stage.getComponent(UITransform)!.width;
+     const h = stage.getComponent(UITransform)!.height;
+     const layer = uiNode('minigame');
+@@ -259,6 +280,11 @@ export class EventView {
+     const duration = 3000;
+     return new Promise<boolean>((resolve) => {
+       const tick = setInterval(() => {
++        if (!layer || !layer.isValid || !isValid(layer, true)) {
++          clearInterval(tick);
++          resolve(false);
++          return;
++        }
+         const elapsed = Date.now() - start;
+         if (elapsed >= duration) {
+           clearInterval(tick);
+@@ -272,6 +298,7 @@ export class EventView {
+ 
+   // ---------------- 结果动画 ----------------
+   private static async playResult(stage: Node, root: Node, game: Game, ev: PendingEvent, optionIndex: number, minigameWin: boolean, notice?: string): Promise<void> {
++    if (!stage || !stage.isValid || !isValid(stage, true)) return;
+     const w = stage.getComponent(UITransform)!.width;
+     const artName = `ev_${ev.id}`;
+     const artNode = stage.getChildByName(artName);
+@@ -380,7 +407,7 @@ export class EventView {
+ 
+   private static rect(parent: Node, name: string, w: number, h: number, color: Color): Node {
+     const n = uiNode(name);
+-    n.parent = parent;
++    if (parent && parent.isValid && isValid(parent, true)) n.parent = parent;
+     const ut = n.addComponent(UITransform);
+     ut.setContentSize(w, h);
+     const g = n.addComponent(Graphics);
+@@ -412,7 +439,7 @@ export class EventView {
+ 
+   private static label(parent: Node, text: string, fontSize: number, x: number, y: number): Node {
+     const n = uiNode('label');
+-    n.parent = parent;
++    if (parent && parent.isValid && isValid(parent, true)) n.parent = parent;
+     const ut = n.addComponent(UITransform);
+     ut.setContentSize(300, fontSize + 12);
+     n.setPosition(x, y, 0);
+@@ -429,7 +456,7 @@ export class EventView {
+ 
+   private static makeButton(parent: Node, text: string, w: number, h: number, onClick: () => void): Node {
+     const n = uiNode('ev_btn');
+-    n.parent = parent;
++    if (parent && parent.isValid && isValid(parent, true)) n.parent = parent;
+     const ut = n.addComponent(UITransform);
+     ut.setContentSize(w, h);
+     const g = n.addComponent(Graphics);
+diff --git a/cocos/assets/scripts/ui/Fx.ts b/cocos/assets/scripts/ui/Fx.ts
+index ed66194..69c6222 100644
+--- a/cocos/assets/scripts/ui/Fx.ts
++++ b/cocos/assets/scripts/ui/Fx.ts
+@@ -63,8 +63,16 @@ export class Fx {
+   /** 从 from 抛物线飞到 to（x 线性、y 叠加一个正弦拱高） */
+   static popArc(node: Node, from: Vec3, to: Vec3, duration: number = 0.45): Promise<void> {
+     return new Promise<void>((resolve) => {
+-      if (!node || !node.isValid) {
++      let done = false;
++      const finish = () => {
++        if (done) return;
++        done = true;
+         resolve();
++      };
++      // 节点被销毁时 tween 可能不再回调，超时兜底避免 async 流程卡住
++      setTimeout(finish, Math.max(0.05, duration) * 1000 + 120);
++      if (!node || !node.isValid) {
++        finish();
+         return;
+       }
+       const fz = from.z || 0;
+@@ -88,7 +96,7 @@ export class Fx {
+         )
+         .call(() => {
+           if (node && node.isValid) node.setPosition(to.x, to.y, tz);
+-          resolve();
++          finish();
+         })
+         .start();
+     });
+@@ -132,9 +140,17 @@ export class Fx {
+       block.on(Node.EventType.TOUCH_END, (e: any) => e?.stopPropagation?.());
+       block.setSiblingIndex(root.children.length - 1);
+ 
+-      director.pause();
++      try {
++        director.pause();
++      } catch (e) {
++        if (block && block.isValid) block.destroy();
++        director.resume();
++        resolve();
++        return;
++      }
+       setTimeout(() => {
+         if (block && block.isValid) block.destroy();
++        // 即使视图在冻结期间被销毁，也一定要恢复 director/输入
+         director.resume();
+         resolve();
+       }, Math.max(0, seconds) * 1000);
+@@ -227,15 +243,22 @@ export class Fx {
+ 
+   static fadeOut(node: Node, duration: number = 0.3): Promise<void> {
+     return new Promise<void>((resolve) => {
+-      if (!node || !node.isValid) {
++      let done = false;
++      const finish = () => {
++        if (done) return;
++        done = true;
+         resolve();
++      };
++      setTimeout(finish, Math.max(0.01, duration) * 1000 + 120);
++      if (!node || !node.isValid) {
++        finish();
+         return;
+       }
+       const op = node.getComponent(UIOpacity) || node.addComponent(UIOpacity);
+       op.opacity = 255;
+       tween(op)
+         .to(Math.max(0.01, duration), { opacity: 0 })
+-        .call(() => resolve())
++        .call(finish)
+         .start();
+     });
+   }
+diff --git a/cocos/assets/scripts/ui/LocationView.ts b/cocos/assets/scripts/ui/LocationView.ts
+index 42b8572..c32ec2d 100644
+--- a/cocos/assets/scripts/ui/LocationView.ts
++++ b/cocos/assets/scripts/ui/LocationView.ts
+@@ -14,6 +14,7 @@ import {
+   view,
+   Sprite,
+   LabelOutline,
++  isValid,
+ } from 'cc';
+ import { Game, Box, ItemInst, Placed, PendingEvent, DigResult } from '../core/game';
+ import { CONFIG, ITEMS, LOCATIONS, ItemDef, Rarity } from '../core/config';
+@@ -26,18 +27,16 @@ import { Sfx } from './Sfx';
+ const { ccclass } = _decorator;
+ 
+ const CELL = 80;
+-// 地面/背包图标都是 16px 原图 ×4 = 64px
+-const FLOOR_ICON = 64;
+-const FLOOR_PLATE = 72;
+-const FLOOR_GLOW = 88;
++// 背包固定 16px 原图 ×4 = 64px；地面按物品数量在 128~32 之间取整数倍
+ const BAG_ICON = 64;
+ const BAG_PLATE = 72;
+ const BAG_GLOW = 80;
+ const SMALL_BOX = 96;
+ const BIG_BOX = 144;
+-const FLOOR_Y = -60;
+-const BAG_Y = -300;
+-const HOLD_UI_Y = -500;
++const FLOOR_Y = 0;
++const FLOOR_ROW_Y = -86;
++const BAG_Y = -340;
++const HOLD_UI_Y = -505;
+ const BOX_Y = 330;
+ const BOX_COLS = 3;
+ 
+@@ -96,6 +95,8 @@ export class LocationView {
+   private floorRotated: Map<number, boolean> = new Map();
+ 
+   private menuNode: Node | null = null;
++  /** 每次 show/hide 递增；异步流程在每个 await 后检查，旧流程自动放弃。 */
++  private sessionToken: number = 0;
+ 
+   constructor(
+     root: Node,
+@@ -164,6 +165,7 @@ export class LocationView {
+   }
+ 
+   public hide(): void {
++    this.sessionToken++;
+     if (this.holdBoxId) this.stopHold(true);
+     if (this.isDragging) this.cancelDrag();
+     this.closeMenu();
+@@ -172,6 +174,9 @@ export class LocationView {
+       this.viewNode.destroy();
+       this.viewNode = null;
+     }
++    this.boxContainer = null;
++    this.floorContainer = null;
++    this.bagContainer = null;
+     this.boxNodes.clear();
+     this.floorNodes.clear();
+     this.bagNodes.clear();
+@@ -188,6 +193,15 @@ export class LocationView {
+     this.badCellAlpha = 1;
+   }
+ 
++  private isAlive(token: number): boolean {
++    return (
++      token === this.sessionToken &&
++      !!this.viewNode &&
++      this.viewNode.isValid &&
++      isValid(this.viewNode, true)
++    );
++  }
++
+   // ------------------------------------------------------------------
+   // 构建按钮
+   // ------------------------------------------------------------------
+@@ -209,7 +223,7 @@ export class LocationView {
+     const outline = hint.addComponent(LabelOutline);
+     outline.color = new Color(255, 246, 220, 230);
+     outline.width = 2;
+-    hint.setPosition(0, 42, 0);
++    hint.setPosition(0, -163, 0);
+   }
+ 
+   private createButtons(): void {
+@@ -565,38 +579,46 @@ export class LocationView {
+   // 挖盒子动画与结果处理
+   // ------------------------------------------------------------------
+   private async performDig(boxId: string, holdSec: number): Promise<void> {
++    const token = this.sessionToken;
+     const boxNode = this.boxNodes.get(boxId);
+     const box = this.game.boxesAt(this.game.location!).find((b) => b.id === boxId);
+-    if (!boxNode || !box) return;
++    if (!boxNode || !box || !isValid(boxNode, true)) return;
+ 
+     // 盒子开启动画
+     if (box.size === 'small') {
+       Fx.pulse(boxNode, 1.3, 0.15);
+       await Fx.freeze(0.2);
++      if (!this.isAlive(token)) return;
+       await Fx.fadeOut(boxNode, 0.2);
+     } else {
+       Fx.pulse(boxNode, 1.5, 0.25);
+       await Fx.freeze(0.15);
++      if (!this.isAlive(token)) return;
+ 
+       // 松手大盒播 lid_pop
+-      if (boxNode.parent) {
++      if (boxNode.parent && isValid(boxNode.parent, true)) {
+         const lidPop = Art.makeVisual('lid_pop', BIG_BOX, BIG_BOX, new Color(200, 180, 120, 255));
+         lidPop.parent = boxNode.parent;
+         lidPop.setPosition(boxNode.position.x, boxNode.position.y, 0);
+         Art.play(lidPop, 'lid_pop', 10, false);
+         await Fx.freeze(0.6);
+         if (lidPop.isValid) lidPop.destroy();
++        if (!this.isAlive(token)) return;
+       }
+ 
+       await Fx.freeze(0.2);
++      if (!this.isAlive(token)) return;
+       await Fx.fadeOut(boxNode, 0.3);
+     }
+-    boxNode.active = false;
++    if (!this.isAlive(token)) return;
++    if (boxNode.isValid) boxNode.active = false;
+ 
++    // 视图已经切走/游戏结束就不再结算这次挖盒
++    if (this.game.phase !== 'location') return;
+     const result = this.game.dig(boxId, holdSec);
+     if (!result.ok) {
+-      if (result.reason) {
+-        Fx.floatText(this.viewNode!, result.reason, new Vec3(0, 200, 0), new Color(255, 80, 80, 255));
++      if (result.reason && this.viewNode) {
++        Fx.floatText(this.viewNode, result.reason, new Vec3(0, 200, 0), new Color(255, 80, 80, 255));
+       }
+       this.onChanged();
+       return;
+@@ -612,13 +634,16 @@ export class LocationView {
+     const boxWorld = this.getBoxWorldPos(boxId);
+     let hasRare = false;
+     for (const item of result.items) {
+-      const node = await this.spawnItemToFloor(item, boxWorld);
++      if (!this.isAlive(token)) return;
++      const node = await this.spawnItemToFloor(item, boxWorld, token);
++      if (!this.isAlive(token)) return;
+       const def = ITEMS.find((i) => i.id === item.itemId);
+       if (node && def && (def.rarity === 'rare' || def.rarity === 'epic')) {
+         hasRare = true;
+-        await this.showRareReveal(node, def);
++        await this.showRareReveal(node, def, token);
+       }
+     }
++    if (!this.isAlive(token)) return;
+     this.layoutFloor();
+ 
+     // 稀有/史诗开奖特效（冻结已在每件物品上做过）
+@@ -626,11 +651,13 @@ export class LocationView {
+       Fx.flash(this.root, result.glow === 'gold' ? new Color(255, 220, 150, 180) : new Color(255, 150, 255, 180));
+       Fx.screenShake(this.root);
+     }
+-    if (!hasRare && result.quip) {
+-      Fx.floatText(this.viewNode!, result.quip, new Vec3(0, -40, 0));
++    if (!hasRare && result.quip && this.viewNode) {
++      Fx.floatText(this.viewNode, result.quip, new Vec3(0, -40, 0));
+     }
+ 
+     this.onChanged();
++    // onChanged 可能刷新到失败/倒下页并销毁本视图
++    if (!this.isAlive(token)) return;
+ 
+     if (result.event) {
+       this.onEvent(result.event);
+@@ -656,6 +683,8 @@ export class LocationView {
+   }
+ 
+   private createPopFlash(parent: Node, pos: Vec3): void {
++    // 失败/切场景后 floorContainer 已被销毁，不能再 setParent
++    if (!parent || !isValid(parent, true)) return;
+     if (Art.frames('pop_flash').length > 0) {
+       const fx = Art.makeVisual('pop_flash', 64, 64, Color.WHITE);
+       fx.parent = parent;
+@@ -686,8 +715,12 @@ export class LocationView {
+       .start();
+   }
+ 
+-  private async spawnItemToFloor(item: ItemInst, fromWorld: Vec3): Promise<Node | null> {
+-    if (!this.floorContainer || !this.viewNode) return null;
++  private async spawnItemToFloor(
++    item: ItemInst,
++    fromWorld: Vec3,
++    token: number,
++  ): Promise<Node | null> {
++    if (!this.isAlive(token) || !this.floorContainer || !this.viewNode) return null;
+     const def = ITEMS.find((i) => i.id === item.itemId);
+     const color = this.rarityColor(def?.rarity ?? 'common');
+     const node = this.createItemNode(item, def, color, 'floor');
+@@ -699,6 +732,10 @@ export class LocationView {
+     this.floorNodes.set(item.uid, node);
+     this.attachFloorTouch(node, item.uid);
+     await Fx.popArc(node, floorLocalFrom, target, 0.5);
++    if (!this.isAlive(token) || !this.floorContainer || !isValid(this.floorContainer, true)) {
++      if (node.isValid) node.destroy();
++      return null;
++    }
+ 
+     // 物品弹出闪光 pop_flash（fx_item_pop 序列帧，缺图时退回代码闪光）
+     const flashLocalPos = new Vec3(target.x, target.y, 0);
+@@ -707,8 +744,8 @@ export class LocationView {
+   }
+ 
+   /** 稀有物品开奖：放大高亮 + 名称/吐槽面板 + 真冻结 0.3s。 */
+-  private async showRareReveal(node: Node, def: ItemDef): Promise<void> {
+-    if (!this.viewNode || !node.isValid) return;
++  private async showRareReveal(node: Node, def: ItemDef, token: number): Promise<void> {
++    if (!this.isAlive(token) || !this.viewNode || !node.isValid) return;
+     const viewUt = this.viewNode.getComponent(UITransform);
+     if (!viewUt) return;
+     const local = viewUt.convertToNodeSpaceAR(node.getWorldPosition());
+@@ -761,9 +798,12 @@ export class LocationView {
+   ): Node {
+     const fallbackColor = color ?? this.rarityColor(def?.rarity ?? 'common');
+     const isFloor = context === 'floor';
+-    const iconSize = isFloor ? FLOOR_ICON : BAG_ICON;
+-    const plateSize = isFloor ? FLOOR_PLATE : BAG_PLATE;
+-    const glowSize = isFloor ? FLOOR_GLOW : BAG_GLOW;
++    const style = isFloor
++      ? this.floorStyle()
++      : { icon: BAG_ICON, plate: BAG_PLATE, glow: BAG_GLOW };
++    const iconSize = style.icon;
++    const plateSize = style.plate;
++    const glowSize = style.glow;
+     const rarity = def?.rarity ?? 'common';
+ 
+     const root = uiNode(`item_${item.itemId}`);
+@@ -786,6 +826,16 @@ export class LocationView {
+     const gop = glow.getComponent(UIOpacity) ?? glow.addComponent(UIOpacity);
+     gop.opacity = 220;
+ 
++    // 图标下方的半透明圆形落影，压住橄榄绿背景
++    const shadow = uiNode('shadow');
++    shadow.parent = root;
++    const sUt = shadow.addComponent(UITransform);
++    sUt.setContentSize(plateSize + 8, plateSize + 8);
++    const sg = shadow.addComponent(Graphics);
++    sg.fillColor = new Color(0, 0, 0, 120);
++    sg.circle(0, 0, plateSize / 2 + 4);
++    sg.fill();
++
+     // #000 alpha 0.55 的圆角底板
+     const plate = uiNode('plate');
+     plate.parent = root;
+@@ -814,8 +864,8 @@ export class LocationView {
+     const outUt = outline.addComponent(UITransform);
+     outUt.setContentSize(iconSize, iconSize);
+     const og = outline.addComponent(Graphics);
+-    og.strokeColor = new Color(0, 0, 0, 220);
+-    og.lineWidth = 1;
++    og.strokeColor = new Color(0, 0, 0, 245);
++    og.lineWidth = 2;
+     og.rect(-iconSize / 2, -iconSize / 2, iconSize, iconSize);
+     og.stroke();
+ 
+@@ -849,21 +899,31 @@ export class LocationView {
+     }
+   }
+ 
++  /** 地面物品按数量选 16px 的整数倍：4 件以内 128，更多时逐级缩小。 */
++  private floorStyle(): { icon: number; plate: number; glow: number } {
++    const n = Math.max(1, this.game.floor.length);
++    const safeW = Math.min(720, UILayout.visibleW) - 56;
++    const sizes = [128, 112, 96, 80, 64, 48, 32];
++    for (const icon of sizes) {
++      const plate = icon + 2;
++      if (n * plate + Math.max(0, n - 1) * 4 <= safeW) {
++        return { icon, plate, glow: icon + 32 };
++      }
++    }
++    return { icon: 32, plate: 36, glow: 64 };
++  }
++
+   private getFloorSlotPosition(index: number): Vec3 {
+     const n = Math.max(1, this.game.floor.length);
+-    const perRow = 6;
+-    const row = Math.floor(index / perRow);
+-    const col = index % perRow;
+-    const inRow = Math.min(perRow, Math.max(1, n - row * perRow));
++    const style = this.floorStyle();
+     const safeW = Math.min(720, UILayout.visibleW) - 56;
+-    // 地面图标 64 + 72 底板 + 88 光环，间距至少 92，避免相邻物品叠在一起
+-    const spacing = Math.max(92, Math.min(100, safeW / Math.max(1, inRow)));
+-    const x = (col - (inRow - 1) / 2) * spacing;
+-    return new Vec3(x, 50 - row * 88, 0);
++    const spacing = n <= 1 ? 0 : Math.min(style.plate + 4, safeW / (n - 1));
++    const totalW = (n - 1) * spacing;
++    return new Vec3(-totalW / 2 + index * spacing, FLOOR_ROW_Y, 0);
+   }
+ 
+   private layoutFloor(): void {
+-    if (!this.floorContainer) return;
++    if (!this.floorContainer || !isValid(this.floorContainer, true)) return;
+     const items = this.game.floor;
+     for (let i = 0; i < items.length; i++) {
+       const uid = items[i].uid;
+@@ -879,7 +939,7 @@ export class LocationView {
+   // 渲染待选区与背包
+   // ------------------------------------------------------------------
+   private renderFloor(): void {
+-    if (!this.floorContainer) return;
++    if (!this.floorContainer || !isValid(this.floorContainer, true)) return;
+     this.floorContainer.children.forEach((child) => child.destroy());
+     this.floorNodes.clear();
+     this.game.floor.forEach((item, idx) => {
+@@ -895,7 +955,7 @@ export class LocationView {
+   }
+ 
+   private renderBag(): void {
+-    if (!this.bagContainer) return;
++    if (!this.bagContainer || !isValid(this.bagContainer, true)) return;
+     this.bagContainer.children.forEach((child) => child.destroy());
+     this.bagNodes.clear();
+ 
+@@ -921,7 +981,7 @@ export class LocationView {
+ 
+   /** 被抓等事件清空背包时，同步销毁 UI 里的物品节点。 */
+   public clearBagView(): void {
+-    if (!this.bagContainer) return;
++    if (!this.bagContainer || !isValid(this.bagContainer, true)) return;
+     for (const node of this.bagNodes.values()) {
+       if (node && node.isValid) node.destroy();
+     }
+@@ -930,7 +990,12 @@ export class LocationView {
+   }
+ 
+   private redrawBagCells(): void {
+-    if (!this.bagGridGraphics || !this.bagGridNode) return;
++    if (
++      !this.bagGridGraphics ||
++      !this.bagGridNode ||
++      !this.bagGridNode.isValid ||
++      !isValid(this.bagGridNode, true)
++    ) return;
+     const g = this.bagGridGraphics;
+     g.clear();
+     const w = this.game.bagW;
+diff --git a/test/game.test.ts b/test/game.test.ts
+index 180ca7e..7ab34ee 100644
+--- a/test/game.test.ts
++++ b/test/game.test.ts
+@@ -741,11 +741,18 @@ test('背包格子中心计算：单格/多格/锚点', () => {
+   assert.deepEqual(bottomLeft, { x: -64, y: 56 });
+ });
+ 
+-test('音效文件存在且小于 20KB', () => {
++test('音效文件存在、小于 20KB 且带 audio-clip meta', () => {
++  const uuids = new Set<string>();
+   for (const name of ['snap.wav', 'bounce.wav']) {
+     const file = path.resolve(process.cwd(), 'cocos/assets/resources/sfx', name);
+     assert.ok(fs.existsSync(file), `${name} 不存在`);
+     const size = fs.statSync(file).size;
+     assert.ok(size > 0 && size < 20 * 1024, `${name} 大小 ${size}`);
++    const metaPath = file + '.meta';
++    assert.ok(fs.existsSync(metaPath), `${name}.meta 不存在`);
++    const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
++    assert.equal(meta.importer, 'audio-clip');
++    assert.ok(meta.uuid && !uuids.has(meta.uuid), `${name} uuid 应唯一`);
++    uuids.add(meta.uuid);
+   }
+ });
+-- 
+2.47.3
+

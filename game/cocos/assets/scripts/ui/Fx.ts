@@ -63,8 +63,16 @@ export class Fx {
   /** 从 from 抛物线飞到 to（x 线性、y 叠加一个正弦拱高） */
   static popArc(node: Node, from: Vec3, to: Vec3, duration: number = 0.45): Promise<void> {
     return new Promise<void>((resolve) => {
-      if (!node || !node.isValid) {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
         resolve();
+      };
+      // 节点被销毁时 tween 可能不再回调，超时兜底避免 async 流程卡住
+      setTimeout(finish, Math.max(0.05, duration) * 1000 + 120);
+      if (!node || !node.isValid) {
+        finish();
         return;
       }
       const fz = from.z || 0;
@@ -88,7 +96,7 @@ export class Fx {
         )
         .call(() => {
           if (node && node.isValid) node.setPosition(to.x, to.y, tz);
-          resolve();
+          finish();
         })
         .start();
     });
@@ -132,9 +140,17 @@ export class Fx {
       block.on(Node.EventType.TOUCH_END, (e: any) => e?.stopPropagation?.());
       block.setSiblingIndex(root.children.length - 1);
 
-      director.pause();
+      try {
+        director.pause();
+      } catch (e) {
+        if (block && block.isValid) block.destroy();
+        director.resume();
+        resolve();
+        return;
+      }
       setTimeout(() => {
         if (block && block.isValid) block.destroy();
+        // 即使视图在冻结期间被销毁，也一定要恢复 director/输入
         director.resume();
         resolve();
       }, Math.max(0, seconds) * 1000);
@@ -227,15 +243,22 @@ export class Fx {
 
   static fadeOut(node: Node, duration: number = 0.3): Promise<void> {
     return new Promise<void>((resolve) => {
-      if (!node || !node.isValid) {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
         resolve();
+      };
+      setTimeout(finish, Math.max(0.01, duration) * 1000 + 120);
+      if (!node || !node.isValid) {
+        finish();
         return;
       }
       const op = node.getComponent(UIOpacity) || node.addComponent(UIOpacity);
       op.opacity = 255;
       tween(op)
         .to(Math.max(0.01, duration), { opacity: 0 })
-        .call(() => resolve())
+        .call(finish)
         .start();
     });
   }

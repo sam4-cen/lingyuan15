@@ -1,0 +1,233 @@
+{
+    "importBase": "import",
+    "nativeBase": "native",
+    "name": "bg",
+    "deps": [],
+    "uuids": [
+        "0b87d006-4f33-49c6-93be-fe3a0755f840",
+        "0b87d006-4f33-49c6-93be-fe3a0755f840@6c48a",
+        "0ea7443d0",
+        "1dcf4a05-7b62-4f85-87d7-36fb7af84dda",
+        "1dcf4a05-7b62-4f85-87d7-36fb7af84dda@6c48a",
+        "3473da35-8aaa-44a5-a021-950534b31ab0",
+        "3473da35-8aaa-44a5-a021-950534b31ab0@6c48a",
+        "34ea448b-08e3-4c7e-af62-7cf9bbdf7c66",
+        "34ea448b-08e3-4c7e-af62-7cf9bbdf7c66@6c48a",
+        "3c6be0da-1177-49c8-9d66-240a82ff146e",
+        "3c6be0da-1177-49c8-9d66-240a82ff146e@6c48a",
+        "47fee883-67b6-41fd-8974-14b8395bfad1",
+        "47fee883-67b6-41fd-8974-14b8395bfad1@6c48a",
+        "494d686a-d72c-4bfa-a8e4-dd88a760c07b",
+        "494d686a-d72c-4bfa-a8e4-dd88a760c07b@6c48a",
+        "5d538367-4256-48b7-a8ae-c268ba94961d",
+        "5d538367-4256-48b7-a8ae-c268ba94961d@6c48a",
+        "7ba2dc85-8e8b-49f5-9fd8-117a88b55744",
+        "7ba2dc85-8e8b-49f5-9fd8-117a88b55744@6c48a",
+        "aac32e59-19b3-4e8e-8955-5b0098cf9e5e",
+        "aac32e59-19b3-4e8e-8955-5b0098cf9e5e@6c48a",
+        "bee5b8de-7d99-40f7-8a1b-13f2ac5b42e6",
+        "bee5b8de-7d99-40f7-8a1b-13f2ac5b42e6@6c48a",
+        "ce3585f1-41a9-47c7-a767-23f329d017e1",
+        "ce3585f1-41a9-47c7-a767-23f329d017e1@6c48a",
+        "dc19f067-8541-46f1-a998-3fdbd7cf3319",
+        "dc19f067-8541-46f1-a998-3fdbd7cf3319@6c48a",
+        "dfa81dbb-43b0-455d-855e-39edd294b5ca",
+        "dfa81dbb-43b0-455d-855e-39edd294b5ca@6c48a",
+        "f2c40a82-21f1-49b6-945b-6bc16799fe7c",
+        "f2c40a82-21f1-49b6-945b-6bc16799fe7c@6c48a",
+        "f9dd41c4-bb4d-492b-bff4-fd143baa180b",
+        "f9dd41c4-bb4d-492b-bff4-fd143baa180b@6c48a"
+    ],
+    "paths": {
+        "0b87d006-4f33-49c6-93be-fe3a0755f840": [
+            "loc_baishizhou",
+            "cc.ImageAsset",
+            1
+        ],
+        "0b87d006-4f33-49c6-93be-fe3a0755f840@6c48a": [
+            "loc_baishizhou/texture",
+            "cc.Texture2D",
+            1
+        ],
+        "aac32e59-19b3-4e8e-8955-5b0098cf9e5e": [
+            "loc_bg_compound",
+            "cc.ImageAsset",
+            1
+        ],
+        "aac32e59-19b3-4e8e-8955-5b0098cf9e5e@6c48a": [
+            "loc_bg_compound/texture",
+            "cc.Texture2D",
+            1
+        ],
+        "494d686a-d72c-4bfa-a8e4-dd88a760c07b": [
+            "loc_dongmen",
+            "cc.ImageAsset",
+            1
+        ],
+        "494d686a-d72c-4bfa-a8e4-dd88a760c07b@6c48a": [
+            "loc_dongmen/texture",
+            "cc.Texture2D",
+            1
+        ],
+        "ce3585f1-41a9-47c7-a767-23f329d017e1": [
+            "loc_fastfood_back",
+            "cc.ImageAsset",
+            1
+        ],
+        "ce3585f1-41a9-47c7-a767-23f329d017e1@6c48a": [
+            "loc_fastfood_back/texture",
+            "cc.Texture2D",
+            1
+        ],
+        "5d538367-4256-48b7-a8ae-c268ba94961d": [
+            "loc_futian_cbd",
+            "cc.ImageAsset",
+            1
+        ],
+        "5d538367-4256-48b7-a8ae-c268ba94961d@6c48a": [
+            "loc_futian_cbd/texture",
+            "cc.Texture2D",
+            1
+        ],
+        "dfa81dbb-43b0-455d-855e-39edd294b5ca": [
+            "loc_huaqiangbei",
+            "cc.ImageAsset",
+            1
+        ],
+        "dfa81dbb-43b0-455d-855e-39edd294b5ca@6c48a": [
+            "loc_huaqiangbei/texture",
+            "cc.Texture2D",
+            1
+        ],
+        "34ea448b-08e3-4c7e-af62-7cf9bbdf7c66": [
+            "loc_nanshan_tech",
+            "cc.ImageAsset",
+            1
+        ],
+        "34ea448b-08e3-4c7e-af62-7cf9bbdf7c66@6c48a": [
+            "loc_nanshan_tech/texture",
+            "cc.Texture2D",
+            1
+        ],
+        "dc19f067-8541-46f1-a998-3fdbd7cf3319": [
+            "loc_night_market",
+            "cc.ImageAsset",
+            1
+        ],
+        "dc19f067-8541-46f1-a998-3fdbd7cf3319@6c48a": [
+            "loc_night_market/texture",
+            "cc.Texture2D",
+            1
+        ],
+        "3473da35-8aaa-44a5-a021-950534b31ab0": [
+            "map_shenzhen",
+            "cc.ImageAsset",
+            1
+        ],
+        "3473da35-8aaa-44a5-a021-950534b31ab0@6c48a": [
+            "map_shenzhen/texture",
+            "cc.Texture2D",
+            1
+        ],
+        "bee5b8de-7d99-40f7-8a1b-13f2ac5b42e6": [
+            "shelter_bed",
+            "cc.ImageAsset",
+            1
+        ],
+        "bee5b8de-7d99-40f7-8a1b-13f2ac5b42e6@6c48a": [
+            "shelter_bed/texture",
+            "cc.Texture2D",
+            1
+        ],
+        "3c6be0da-1177-49c8-9d66-240a82ff146e": [
+            "shelter_bed_up",
+            "cc.ImageAsset",
+            1
+        ],
+        "3c6be0da-1177-49c8-9d66-240a82ff146e@6c48a": [
+            "shelter_bed_up/texture",
+            "cc.Texture2D",
+            1
+        ],
+        "7ba2dc85-8e8b-49f5-9fd8-117a88b55744": [
+            "shelter_recycle",
+            "cc.ImageAsset",
+            1
+        ],
+        "7ba2dc85-8e8b-49f5-9fd8-117a88b55744@6c48a": [
+            "shelter_recycle/texture",
+            "cc.Texture2D",
+            1
+        ],
+        "1dcf4a05-7b62-4f85-87d7-36fb7af84dda": [
+            "shelter_recycle_up",
+            "cc.ImageAsset",
+            1
+        ],
+        "1dcf4a05-7b62-4f85-87d7-36fb7af84dda@6c48a": [
+            "shelter_recycle_up/texture",
+            "cc.Texture2D",
+            1
+        ],
+        "47fee883-67b6-41fd-8974-14b8395bfad1": [
+            "sleep_fastfood",
+            "cc.ImageAsset",
+            1
+        ],
+        "47fee883-67b6-41fd-8974-14b8395bfad1@6c48a": [
+            "sleep_fastfood/texture",
+            "cc.Texture2D",
+            1
+        ],
+        "f9dd41c4-bb4d-492b-bff4-fd143baa180b": [
+            "sleep_netcafe",
+            "cc.ImageAsset",
+            1
+        ],
+        "f9dd41c4-bb4d-492b-bff4-fd143baa180b@6c48a": [
+            "sleep_netcafe/texture",
+            "cc.Texture2D",
+            1
+        ],
+        "f2c40a82-21f1-49b6-945b-6bc16799fe7c": [
+            "sleep_park",
+            "cc.ImageAsset",
+            1
+        ],
+        "f2c40a82-21f1-49b6-945b-6bc16799fe7c@6c48a": [
+            "sleep_park/texture",
+            "cc.Texture2D",
+            1
+        ]
+    },
+    "scenes": {},
+    "packs": {
+        "0ea7443d0": [
+            "0b87d006-4f33-49c6-93be-fe3a0755f840@6c48a",
+            "1dcf4a05-7b62-4f85-87d7-36fb7af84dda@6c48a",
+            "3c6be0da-1177-49c8-9d66-240a82ff146e@6c48a",
+            "5d538367-4256-48b7-a8ae-c268ba94961d@6c48a",
+            "7ba2dc85-8e8b-49f5-9fd8-117a88b55744@6c48a",
+            "34ea448b-08e3-4c7e-af62-7cf9bbdf7c66@6c48a",
+            "47fee883-67b6-41fd-8974-14b8395bfad1@6c48a",
+            "494d686a-d72c-4bfa-a8e4-dd88a760c07b@6c48a",
+            "3473da35-8aaa-44a5-a021-950534b31ab0@6c48a",
+            "aac32e59-19b3-4e8e-8955-5b0098cf9e5e@6c48a",
+            "bee5b8de-7d99-40f7-8a1b-13f2ac5b42e6@6c48a",
+            "ce3585f1-41a9-47c7-a767-23f329d017e1@6c48a",
+            "dc19f067-8541-46f1-a998-3fdbd7cf3319@6c48a",
+            "dfa81dbb-43b0-455d-855e-39edd294b5ca@6c48a",
+            "f2c40a82-21f1-49b6-945b-6bc16799fe7c@6c48a",
+            "f9dd41c4-bb4d-492b-bff4-fd143baa180b@6c48a"
+        ]
+    },
+    "versions": {
+        "import": [],
+        "native": []
+    },
+    "redirect": [],
+    "debug": true,
+    "extensionMap": {},
+    "hasPreloadScript": true,
+    "dependencyRelationships": {}
+}

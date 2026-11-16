@@ -1,0 +1,16 @@
+followup31 与 followup32 均因客户端 flush on a closed handle 中断，未产出 final。请根据下列最新已核实 Mac 证据立即收敛方案，不要自行恢复被中断的泛方案，不要再让 Mac 核 repo、核 test、核根 package.json，也不要在 Documents/lingyuan15 跑根 prebuild。不要改仓库源码、不要操作 Mac、不要执行构建、不要覆盖旧工具/旧构建/原项目。
+
+最新已查明：/Users/[REDACTED]/Documents/lingyuan15 本身就是 Cocos 项目根，不是完整 box 仓库。该目录含 assets、build、build-templates、library、package（约 116B）、profiles、settings、temp；没有 cocos/、没有 .git、没有 test。小游戏已对该树中两份脚本做 hash，结果等于父提交 5ec8fde 内容：
+- assets/scripts/ui/MapLayout.ts = a524788a16d9d6a1776989a0d34a6cfc24413e1dc70901ae6302c2b93b955198
+- assets/scripts/GameRoot.ts = 1ffdf30c71e41a189ce5a19030045067519fef54a79c548c2229e2aa4b964471
+不要再重复原先四 hash 清单，也不要再要求 Mac 核验 test/r39.test.ts 或把该树当 git repo。box 仓库里对应新提交 d3d65b662c29b5a9d2103a011a5c2bb87f3a2edb 的两份新脚本内容已存在，路径是 cocos/assets/scripts/...；Mac 副本应使用 assets/scripts/...。既有 manifest 在 /workspace/ly15_r40_new_d3d65b6.sha256 与 /workspace/ly15_r40_parent_file_hashes_20261116.json，只读核对即可。
+
+请立即收敛并交付：
+1) 两份新脚本的单纯文件交接方案（不依赖 git）：从 box 新提交取出 MapLayout.ts 与 GameRoot.ts，交到 Mac 后放入一个全新独立 Cocos 项目副本的 assets/scripts/... 路径，并给出验证这两文件 hash 等于新提交内容的正规只读命令。不碰原件 /Users/[REDACTED]/Documents/lingyuan15，不覆盖其旧 build。
+2) 如何从当前这份已是父版本的 Mac Cocos 项目根，复制出全新唯一源码/构建输出目录，再只替换上述两脚本并验证 hash。用户明确不删除文件、保留旧 build。
+3) Version 与 ly15_info.json 的最小合规溯源方案：只读 box 仓库 package.json 与实际 prebuild/postbuild 脚本，说明是否会删文件、覆盖哪些生成源码/产物；若现有脚本会删文件或写回原项目/旧 build，则不要笼统让跑 npm prebuild，改为仅本次所需的独立工具草案，不改玩法或仓库源码。
+4) Cocos Creator 3.8.8 实际 Mac 可执行路径与 CLI/buildPath/平台参数：仅基于已获准记录；无确证就明确未知，只给小游戏一条精确正规只读核验步骤，不编造已安装路径或官方参数，不访问被拒 Automator 路径，不扫描 Library，不装包，不新开网络服务。
+
+同时如证据足够，继续准备全新 r40 probe 工具草案（box 目录建议 /workspace/ly15_probe_tools_r40_d3d65b6_20261116；Mac 工具目录 /Users/[REDACTED]/Documents/ly15_probe_tools_r40_d3d65b6_20261116；全新候选根 /Users/[REDACTED]/Documents/ly15_probe_cases_r40_d3d65b6_20261116，子目录 futian_cbd/dongmen，player 白石洲）。必须验证新构建 ly15_info.commit=d3d65b662c29b5a9d2103a011a5c2bb87f3a2edb 以及资源/入口 hash，不再硬套 r39 game.js 2522B/32a9，不能只改 gate 接受旧 assets，不盲猜尚未产出的 game.js hash。若还缺新构建数据，给出准备稿和准确所需文件清单，勿编造。
+
+交付完整文件代码块（无省略号/伪代码）。建议文件名：R40_BUILD_RUNBOOK.md、r40_prebuild_safe.py（仅当需要合规替代时）、两脚本交接说明/manifest、probe_prepare.py、probe_driver.js、RUNBOOK.md。明确哪些只读核验、哪些在全新独立目录进行、哪些必须由小游戏在 Mac 授权会话执行。指出未实测、未执行；不签真实触摸/全流程。协调者只提取草案，本轮不执行、不 CopyFromBox、不改 git、不碰 Mac 原件。

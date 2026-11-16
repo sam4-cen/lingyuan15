@@ -1,0 +1,31 @@
+续 followup53，此为 followup54。福田 merged 注入专项通过结论保留，不要重跑福田，不要改写福田结论。
+
+授权与执行（由父会话独立 ReadTranscript 核用户原话，不是代理新授权）：原任务是只改限定牌位置并做相关复测。可逆的必要测试工具修正，以及对现有 case 用已核公开正规微信 CLI 重开一次，属于该范围。此前「不再 open」只是我们为防无效循环设的执行界限，不是用户拒绝，也不是原生审批拒绝。协调者会在你给出完整方案后，原样提取、校验、全新备份，仅应用到现有东门测试 case，然后用已核的 `cli open --project` 只 open 一次；不猜不存在的 close/run，不用 auto/内部端口替代，不点用户 Mac GUI，不要求用户再普通编译。若正规 open 只是复用旧窗口，必须如实说明，不能当成已重置运行时。拒绝任何绕开原生审批、改安全设置、连接 CLI 打印端口、扫 Library 或猜测运行时宿主路径的建议。
+
+请给出完整可应用的最小测试工具修正，不要只给片段。目标：
+
+1) 修已确定的 collect 全局首个 daily_badge 误报缺陷：只在目标 `map_marker_` + CASE 内取 badge；校验 `plate.parent` 就是该 marker；并在 collect 前校验 `G.dailySpecial && G.dailySpecial.locationId === CASE`，否则 FAIL，不得对大学城或其他地点的牌签发东门 READY。
+2) READY 必须把运行时身份与测量对象、布局指标绑定到同一可读取证据范围内，避免再出现超长单行被 Console 顶端裁掉、只见尾部的问题。不能根据源码常量伪造运行时结果。至少要能在唯一一次截图中完整读到：
+   LY15_PROBE: READY
+   probeVersion（建议新版本号，如 r40-layout-ready-v3）
+   case=dongmen
+   player=baishizhou
+   buildTag=r40 d3d65b6
+   markerName（应为 map_marker_dongmen）
+   dailySpecialLocationId（应为 dongmen）
+   stage/reason/placementSide/badgeBounds/plateBounds/dx
+   ownIconOverlap/heroOverlap/mergedHeightMatches/belowCentered
+   logPath/logOk
+3) 保留有界等待，以真实可用 GameRoot/game 方法为就绪条件；布置语义仍是 location=PLAYER(baishizhou)、dailySpecial.locationId=CASE(dongmen)。dx 两中心 /2。below 须 abs(dx)<=0.5 且不压玩家/自家图标，否则不能当 below；merged 须安全、文字「限定」完整，非 below 时 dx 不必为 0，不可横滑冒充居中。
+4) apply 仅用于现有东门：从密封原 game.js 重组（密封 loader 2522B sha256 32a997ceb72b71efbc26553d820d1a2de26115a5b00ac48917351ca5ab68c5a3）+ newline + prelude + 单个新 driver，不叠加当前注入。门禁必须核当前东门 game.js 17994B sha256 ee8a2237cc98e620b9546e86588a5087eec6037028a60ac532f3c62886ecbadf，以及当前 `__ly15_layout_probe_driver_v2.js` 15290B sha256 3e3f761bbb9608450b5913d37dec7cc1e0c2be26933cb2beb714b83bc1e3b508。全新备份目录必须原先不存在。不改游戏源码/build/配置/AppID/基础库/玩法，不新 case，不删文件。不要给福田 apply。
+5) 给出精确 runbook：apply 命令（含 --approved、--case-id dongmen、实际 hash 门禁、建议备份目录如 /Users/[REDACTED]/Documents/ly15_r40_layout_probe_v3_backup_dongmen_20261117_0000）、随后只 open 一次的已核命令：
+   /Applications/wechatwebdevtools.app/Contents/MacOS/cli open --project /Users/[REDACTED]/Documents/ly15_probe_cases_r40_d3d65b6_20261116_v2/dongmen
+   一次有界等待；重新枚举后只取必要新图。若出现信任框则停止。若 open 可能只复用已打开窗口，请写明如何从新图判断是否仍是旧运行态（例如无新版本 START/READY、限定仍在大学城）。不要建议再让用户普通编译。
+
+请输出完整文件，用清晰文件标题包裹代码块，避免嵌套 fence 截断提取。建议新工具目录名：/workspace/ly15_r40_layout_probe_tools_20261117_0000/ ，文件如 layout_probe_driver_v3.js、apply_layout_probe_v3.py、LAYOUT_PROBE_V3_RUNBOOK.md。不要改仓库游戏源码。尽快给完整可应用产物。
+
+现有参考（只读，不必再无差别重读已核入口链）：
+- 当前 v2 driver：/workspace/ly15_r40_layout_probe_tools_20261116_2210/layout_probe_driver_v2.js
+- 当前 apply：/workspace/ly15_r40_layout_probe_tools_20261116_2210/apply_layout_probe_v2.py
+- followup53 完整结论：/workspace/ly15_r40_layout_followup53_20261116_final.txt
+- 最新东门图（限定在大学城、Console 空，不能当通过）：/workspace/ly15-shots/window_3461_2354.png

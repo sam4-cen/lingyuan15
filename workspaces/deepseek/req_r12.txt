@@ -1,0 +1,10 @@
+Project: /workspace/lingyuan15 (Cocos Creator 3.8.8 WeChat mini-game). HEAD 18e26be.
+Do ALL items:
+
+1. Floor loot item scale: revert the 2x enlargement back to 1x (original size). KEEP the outline and the dark backing plate. When there are 4+ floor items, the plates must shrink together with the icons so adjacent plates never overlap (keep the 18e26be renderFloor-on-style-change logic; plate size must derive from the current floorStyle scale). Verify no overlap for 1..max items; update/extend the layout unit tests accordingly.
+
+2. Daily settlement (每日结算) page text layout: the roast/summary line such as 「今日战绩：格子衫，收入¥15.00，深圳欢迎你」 currently wraps badly and gets cut off. Change all text on that panel to LEFT-aligned, one item per line, with auto word-wrap (Label overflow = RESIZE_HEIGHT with fixed width, enableWrapText). Long text must be fully visible: shrink font size for long lines and/or grow the panel height so that EVERY line is fully shown, never clipped. Check the other lines on the panel too.
+
+3. If src/core changes, sync it to cocos/assets/scripts/core (must be identical).
+
+Then run the tests and tsc (must be 0 errors), commit, and report each change and the commit hash.

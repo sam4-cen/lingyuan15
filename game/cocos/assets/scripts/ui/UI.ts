@@ -1,4 +1,5 @@
-import { Layers, Node, UITransform, Widget, view, sys } from 'cc';
+import { Layers, Node, UITransform, Widget, screen, view, sys } from 'cc';
+import { DESIGN_HEIGHT, DESIGN_WIDTH, setFontScreenMetrics } from './PixelFontMetrics';
 
 /**
  * 新建 UI 节点：默认层是 DEFAULT，而 UI 相机只渲染 UI_2D，
@@ -10,10 +11,16 @@ export function uiNode(name: string = 'node'): Node {
   return node;
 }
 
-/** 竖屏安全区（设计分辨率 720×1280，Fit Height）换算。 */
+/** 竖屏安全区：设计分辨率 720×1280，项目设置为 Fixed Height（Fit Height）。 */
 export class UILayout {
-  public static visibleW: number = 720;
-  public static visibleH: number = 1280;
+  public static designW: number = DESIGN_WIDTH;
+  public static designH: number = DESIGN_HEIGHT;
+  public static visibleW: number = DESIGN_WIDTH;
+  public static visibleH: number = DESIGN_HEIGHT;
+  /** 真实物理像素与 DPR（Cocos 3.8 screen.windowSize 已是物理像素）。 */
+  public static physicalW: number = DESIGN_WIDTH;
+  public static physicalH: number = DESIGN_HEIGHT;
+  public static dpr: number = 1;
   public static safeTop: number = 0;
   public static safeBottom: number = 0;
   public static safeLeft: number = 0;
@@ -22,38 +29,61 @@ export class UILayout {
   public static capsuleBottom: number = 0;
 
   public static refresh(): void {
-    this.visibleW = 720;
-    this.visibleH = 1280;
+    this.designW = DESIGN_WIDTH;
+    this.designH = DESIGN_HEIGHT;
+    this.visibleW = DESIGN_WIDTH;
+    this.visibleH = DESIGN_HEIGHT;
+    this.physicalW = DESIGN_WIDTH;
+    this.physicalH = DESIGN_HEIGHT;
+    this.dpr = 1;
     this.safeTop = 0;
     this.safeBottom = 0;
     this.safeLeft = 0;
     this.safeRight = 0;
     this.capsuleBottom = 0;
 
-    let vsW = 720;
-    let vsH = 1280;
-    let frameW = 720;
-    let frameH = 1280;
+    let vsW = DESIGN_WIDTH;
+    let vsH = DESIGN_HEIGHT;
+    let frameW = DESIGN_WIDTH;
+    let frameH = DESIGN_HEIGHT;
+    let physicalW = DESIGN_WIDTH;
+    let physicalH = DESIGN_HEIGHT;
+    let dpr = 1;
     try {
-      const vs = view.getVisibleSize();
-      const frame = view.getFrameSize();
-      if (vs && vs.width > 0 && vs.height > 0) {
-        vsW = Math.min(720, vs.width);
-        vsH = Math.min(1280, vs.height);
+      const design = view.getDesignResolutionSize();
+      if (design && design.width > 0 && design.height > 0) {
+        this.designW = design.width;
+        this.designH = design.height;
       }
+      // Fixed Height 下 getVisibleSize() 的高度 = 设计高，宽度 = 真实屏幕宽 × 设计高 / 屏幕高。
+      // 直接使用它，不再 min(720)/min(1280)：否则高屏/DevTools 上底部会被裁掉。
+      const vs = view.getVisibleSize();
+      if (vs && vs.width > 0 && vs.height > 0) {
+        vsW = vs.width;
+        vsH = vs.height;
+      } else if (this.designW > 0 && this.designH > 0) {
+        vsW = this.designW;
+        vsH = this.designH;
+      }
+      const frame = view.getFrameSize();
       if (frame && frame.width > 0 && frame.height > 0) {
         frameW = frame.width;
         frameH = frame.height;
-        // 项目设置为 720×1280 + Fit Height：
-        // 实际可视宽度 = 屏幕宽 × 设计高 / 屏幕高，两侧会被裁掉
-        const fitScale = frameH / 1280;
-        if (fitScale > 0) {
-          vsW = Math.min(720, frameW / fitScale);
-          vsH = 1280;
-        }
       }
-      this.visibleW = vsW;
-      this.visibleH = vsH;
+      this.visibleW = Math.max(1, vsW);
+      this.visibleH = Math.max(1, vsH);
+      dpr = Math.max(1, screen.devicePixelRatio || 1);
+      // Cocos 3.8 windowSize 是物理像素；若某平台仍返回 CSS 尺寸，用 frame × DPR 兜底。
+      const win = screen.windowSize;
+      physicalW = win && win.width > 0 ? win.width : frameW * dpr;
+      physicalH = win && win.height > 0 ? win.height : frameH * dpr;
+      if (frameW > 0 && dpr > 1 && Math.abs(physicalW - frameW) < 0.5) {
+        physicalW = frameW * dpr;
+        physicalH = frameH * dpr;
+      }
+      this.physicalW = Math.max(1, physicalW);
+      this.physicalH = Math.max(1, physicalH);
+      this.dpr = dpr;
     } catch (e) {
       // 非运行环境（如 tsc/单测）使用设计分辨率
     }
@@ -61,10 +91,10 @@ export class UILayout {
     // 微信右上角胶囊会挡住顶栏，取它的底部位置，把顶栏内容压到胶囊下方
     try {
       const wxAny: any = (globalThis as any).wx;
-      if (wxAny && typeof wxAny.getMenuButtonBoundingClientRect === 'function' && frameH > 0) {
+      if (wxAny && typeof wxAny.getMenuButtonBoundingClientRect === 'function') {
         const rect = wxAny.getMenuButtonBoundingClientRect();
         if (rect && rect.bottom > 0) {
-          // 胶囊 rect 是窗口 CSS 像素，用 wx 的窗口高度换算最稳
+          // 胶囊 rect 是窗口 CSS 像素；设计坐标按当前 visibleH / 窗口高度换算。
           let winH = frameH;
           try {
             const info = typeof wxAny.getWindowInfo === 'function'
@@ -74,7 +104,7 @@ export class UILayout {
           } catch (e) {
             // 取不到就用 frameH
           }
-          const scale = winH > 0 ? 1280 / winH : 1;
+          const scale = winH > 0 ? this.visibleH / winH : 1;
           this.capsuleBottom = Math.max(0, rect.bottom * scale);
         }
       }
@@ -82,25 +112,64 @@ export class UILayout {
       // 非微信环境：忽略，顶栏按安全区排
     }
 
+    // 字号按物理像素定整数倍：Fit Height 下 9:20 屏的可视设计宽更窄。
+    setFontScreenMetrics({
+      physicalWidth: this.physicalW,
+      physicalHeight: this.physicalH,
+      visibleWidth: this.visibleW,
+      visibleHeight: this.visibleH,
+      devicePixelRatio: this.dpr,
+    });
+
     try {
-      // getSafeAreaRect 已经是设计分辨率单位，不要再乘屏幕像素比例
+      // getSafeAreaRect 返回设计分辨率单位；仅限制在可视区内，避免安全区把整屏推走。
       const safe = sys.getSafeAreaRect();
       if (safe && safe.width > 0 && safe.height > 0) {
-        const sw = Math.min(vsW, safe.width);
-        const sh = Math.min(vsH, safe.height);
-        this.safeTop = Math.max(0, vsH - (safe.y + sh));
-        this.safeBottom = Math.max(0, safe.y);
-        this.safeLeft = Math.max(0, safe.x);
-        this.safeRight = Math.max(0, vsW - (safe.x + sw));
+        const left = Math.max(0, safe.x);
+        const bottom = Math.max(0, safe.y);
+        const right = Math.max(0, this.visibleW - (safe.x + safe.width));
+        const top = Math.max(0, this.visibleH - (safe.y + safe.height));
+        this.safeLeft = left;
+        this.safeRight = right;
+        this.safeBottom = bottom;
+        this.safeTop = top;
       }
     } catch (e) {
-      // 忽略，按 0 安全区处理
+      // 忽略，继续尝试微信 safeArea；网页版取不到时按 0 处理。
+    }
+
+    try {
+      // 微信部分基础库/开发者工具里 getSafeAreaRect 不返回底部安全区，
+      // 再按 wx.getSystemInfoSync().safeArea 与窗口高的差值兜底。
+      const wxAny: any = (globalThis as any).wx;
+      const info = wxAny && (typeof wxAny.getWindowInfo === 'function'
+        ? wxAny.getWindowInfo()
+        : wxAny.getSystemInfoSync?.());
+      if (info && info.safeArea) {
+        const winH = info.windowHeight > 0 ? info.windowHeight : info.screenHeight;
+        if (winH > 0) {
+          const scale = this.visibleH / winH;
+          const area = info.safeArea;
+          const bottomInset = Math.max(0, winH - area.bottom) * scale;
+          const topInset = Math.max(0, area.top) * scale;
+          const winW = info.windowWidth > 0 ? info.windowWidth : info.screenWidth;
+          const leftInset = Math.max(0, area.left || 0) * (winW > 0 ? this.visibleW / winW : 1);
+          const rightInset = Math.max(0, winW - area.right) * (winW > 0 ? this.visibleW / winW : 1);
+          // 取较大值，避免 Cocos 已经算过的安全区被更小的值覆盖。
+          this.safeBottom = Math.max(this.safeBottom, bottomInset);
+          this.safeTop = Math.max(this.safeTop, topInset);
+          this.safeLeft = Math.max(this.safeLeft, leftInset);
+          this.safeRight = Math.max(this.safeRight, rightInset);
+        }
+      }
+    } catch (e) {
+      // 非微信/取不到 safeArea：网页版按 0 安全区处理。
     }
   }
 
   /** 设计坐标下的可视半宽（Fit Height 时两侧会被裁掉）。 */
   public static get halfW(): number {
-    return Math.min(360, this.visibleW / 2);
+    return this.visibleW / 2;
   }
 
   public static get top(): number {
@@ -152,7 +221,7 @@ export function alignTopSide(node: Node, side: 'left' | 'right', margin: number 
   widget.isAlignTop = true;
   widget.isAbsoluteTop = true;
   widget.top = UILayout.headerTop + margin;
-  const crop = Math.max(0, (720 - UILayout.visibleW) / 2);
+  const crop = Math.max(0, (UILayout.designW - UILayout.visibleW) / 2);
   if (side === 'left') {
     widget.isAlignLeft = true;
     widget.isAbsoluteLeft = true;

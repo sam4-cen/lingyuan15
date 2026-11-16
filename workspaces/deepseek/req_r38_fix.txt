@@ -1,0 +1,20 @@
+你在 /workspace/lingyuan15（Cocos Creator 3.8.8 微信小游戏《老花店》），当前 HEAD 59b1c41（r36+r37）。测试未通过，修复以下问题，加单测，npm test 全过，src/core 改动同步 cocos 侧，最后 git commit -m "fix: r38 版本号/info回填/事件页竖直分布/限定牌"。截图 /workspace/ly15-shots/r37_*。主包 <3950KB。
+
+1. 版本号显示「r36 dev」：Version.ts 的 BUILD_TAG 是 "r36 dev"。改 gen-version：从 git HEAD 取短 hash，tag = "r<轮次> <hash>"（轮次取自最近一次 commit message 里的 rNN，取最大值），不允许输出 "dev"；如果在非 git 目录（例如 worktree 拷贝）运行，读环境变量 LY15_COMMIT 或 .git 文件。提供一个一键脚本 scripts/prebuild.mjs（npm run prebuild）在构建前生成 Version.ts 和 wordbreak 数据；如 HEAD 取不到就报错退出，不要静默写 dev。单测：gen-version 在 git 仓库和 worktree 里都产出正确 hash，且 tag 不含 dev。
+2. info.json 回填：新增 scripts/postbuild-info.mjs（npm run postbuild:info -- <build/wechatgame 路径> [输出路径...]），构建后统计主包大小（build/wechatgame 下除 subpackages 外的文件总字节，或读取 DevTools 报告若提供），写入 commit(HEAD 短 hash)、tag、mainPackageBytes、bgSubpackageBytes、totalBytes、builtAt；可同时写到多个输出路径（仓库 ly15_info.json 和 ~/Documents/ly15_info.json）。仓库里的 ly15_info.json 不再提交 null/dev：用 postbuild 生成，或在 .gitignore 里忽略并保留 ly15_info.example.json。单测：对一个假 build 目录算出的大小正确。
+3. 事件页竖直分布：
+   - 最后一个按钮底边距标语顶边 = 24 css（按设计px→css 换算，四尺寸实测 22–26 css），现在只有 8–11 css。
+   - 内容整组偏下：标题现在在屏高 40–52%，390 单按钮页顶栏到标题空了 280–350 css。改为标题中心固定在安全区 18–22%（顶栏下方 ≤ 48 css），NPC 垂直居中于标题底和描述底板顶之间并按物理像素整数倍放大（高度 ≤ 屏高 34%），描述底板底 = 第一个按钮顶 - 12px，按钮组从底部往上排。若中间仍有富余，富余空间平均分到"标题-NPC"和"NPC-描述"两处，不要全堆在顶部。
+   - 单测四尺寸（375x667、360x780、390x844、428x926）× 单/双按钮：标题中心 18–22%，顶栏到标题空隙 ≤ 80 css，末按钮底到标语顶 22–26 css，NPC 脚到描述顶 ≤ 40 css，无元素重叠。
+4. 小项：福田和东门的「限定」牌上移后压到自家地点图标下沿。上方位置的判断必须把自家地点图标矩形也算进碰撞（只排除名字牌自身），压到自家图标就退到红色印章方案。单测：每个地点 × 四尺寸，小牌不与任何图标（含自家）相交。
+
+【UI/UX 定稿（取代上面第 3、4 条及之前所有事件页百分比/限定牌规则）】
+事件页：可用区 = 顶栏底边到底部标语上沿，顶 T、高 H，所有位置按 H 算，与按钮数量无关：
+- 标题牌中心 T + 12%H
+- NPC 水平居中，脚底在 T + 50%H；整数倍缩放（物理像素整数倍规则不变），取能放进 30%H 的最大倍数
+- 描述底板顶边 T + 54%H
+- 第一个按钮顶边 = max(T + 72%H, 描述底板底边 + 12px)
+- 按钮间距 10px；最后一个按钮底边 ≤ T + H - 24px，超出时整组（标题/NPC/描述/按钮）上推，不压缩描述和 NPC
+- 结果面板：顶边 = 描述底板顶边，与描述底板互相替换显示，不再按脚底计算（删除旧的脚底+8 逻辑及其单测，改为新断言）
+单测四尺寸 × 单/双按钮 × 短/长描述断言以上数值（±2 设计px）。
+「限定」牌：放在名字牌右侧，垂直居中，间距 2px；右侧超出地图可见区就放左侧。不再放上方/下方。若左右都与其他地点图标/名字牌相交，才退到名字牌内红色印章。单测每个地点 × 四尺寸不与任何图标（含自家）相交。

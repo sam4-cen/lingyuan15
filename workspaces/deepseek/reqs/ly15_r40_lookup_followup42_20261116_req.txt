@@ -1,0 +1,31 @@
+续 followup41，此为 followup42。协调者只转述经父会话独立 ReadTranscript 核过的小游戏 position312、用户 cu301680644 原文日志（不是仅代理说法），并把只读文件路径交给你。全部诊断与任何代码方案由你完成；协调者不自行推理、不看图推断、不改逻辑。不写仓库、不操作 Mac、不截图、不编译、不重开、不 prepare、不改基础库或游戏源码/构建/配置/AppID、不扫 Library、不猜 USER_DATA_PATH 宿主路径、不访问被拒 App 内部文件、不直接 cat 运行时 URL、不读用户无关数据。此轮仅生成/准备方案，不要让协调者在 Mac 应用或编译。注入探针不是正常触摸，不签全流程。
+
+这是新证据，不要再沿用缺 START、信任框或模式问题。已证实现状：信任框已消失，为小游戏模式；game.js 已注入 v2 driver，START 是同步顶层日志。
+
+原始日志原文要点：
+- Wechat Lib 3.18.0
+- 前有 fork process timeout 栈，指向微信内部 processService.js（不要访问该内部文件，也不要把该栈当作游戏失败或根因）
+- LY15_PROBE: START {probeVersion:r40-probe-v2,mode:probe-layout,not_normal_touch:true,case:futian_cbd,player:baishizhou,buildTag:r40 d3d65b6,stage:start}
+- LoadScene db://assets/scenes/main.scene:54.042724609375ms
+- LY15_PROBE: LOG_PATH http://usr/ly15_probe_futian_cbd_baishizhou_1794836195638_468530.log
+- LY15_PROBE: FAIL {probeVersion:r40-probe-v2,mode:probe-layout,not_normal_touch:true,case:futian_cbd,player:baishizhou,buildTag:r40 d3d65b6,stage:lookup,reason:GAMEROOT_NO_GAME,elapsedMs:30386,errors:[],ccPresent:true,directorPresent:true,scenePresent:true,sceneName:main,classFound:true,rootBy:getComponentInChildren(string),rootNode:null,componentName:o,gamePresent:false,nodesVisited:0,nodeNames:[],canvasSeen:false,logPath:http://usr/ly15_probe_futian_cbd_baishizhou_1794836195638_468530.log,logOk:true}
+
+请只读现有精确文件（优先现有 case/工具与仓库源码、以及新 build 的 assets/main/index.js）：
+- /workspace/ly15_probe_tools_r40_d3d65b6_20261116_v2/probe_driver.js
+- /workspace/ly15_probe_tools_r40_d3d65b6_20261116_v2/probe_prepare.py
+- /workspace/ly15_probe_tools_r40_d3d65b6_20261116_v2/RUNBOOK.md
+- /workspace/ly15_r40_futian_v2_case/game.js
+- /workspace/ly15_r40_futian_v2_case/__ly15_probe_driver.js
+- /workspace/ly15_r40_futian_v2_case/case.json
+- /workspace/ly15_r40_futian_v2_case/case_manifest.json
+- /workspace/ly15_r40_futian_v2_case/game.json
+- /workspace/lingyuan15/cocos/assets/scripts/GameRoot.ts
+- 如需对照限定牌布局，可只读 /workspace/lingyuan15/cocos/assets/scripts/ui/MapLayout.ts
+- 新 build index.js 已正规 CopyToBox 到全新路径（未覆盖旧件）：/workspace/ly15_r40_build_assets_main_index_d3d65b6_20261116.js
+  来源 /Users/[REDACTED]/Documents/ly15_r40_buildroot_d3d65b6_20261116/wechatgame/assets/main/index.js
+  509841B，mtime 2026-11-16T16:11:37+0800；box sha256 340caa81853753299c2311bce80b41368b3101732a5fee3d6baa54479a9cd6e7，请只读复核。
+也可对照 followup41 final：/workspace/ly15_r40_startup_followup41_20261116_final.txt，但结论必须以本轮新日志与源码为准。
+
+请核：现有 v2 driver 的 root 查找对象有效性、回退分支、遇到假对象是否短路；真实 GameRoot.ts 初始化时序，以及编译注册后的属性名。区分测试脚本获取错误与游戏初始化失败。任何推断必须标明未实证。不能因为 componentName=o 就假设混淆是根因；不能因为 fork timeout 就判游戏失败。针对 cc/scene/root 对象做有界诊断；只有验证真实组件与 game 后才布置状态，别盲写 G。
+
+优先用现有 case 做最小只读诊断。若确需测试工具改动，给出全新独立 v3 诊断 driver 与最小应用方案（完整代码块，无省略号/伪代码），保留旧 v2 及其证据，不改游戏源码/构建/配置/AppID，不新建整套 case、不重建。此轮只生成文本方案，明确不要在 Mac 应用。给出精确诊断依据，以及下一可执行步骤及其影响，交父会话决定是否执行。尽快给简明可行动结果。

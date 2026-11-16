@@ -1,0 +1,2 @@
+立即实际read_image当前2909同窗新图 /workspace/ly15-shots/probe_futian_current_1532.png（922KB）。测试报告用户已完成当前项目作者信任操作；不能从该报告或旧图推断READY。测试已核579629 exit0/open 15:29:12北京时间，仅报告不作READY证据。未改原配置/送测构建，这是注入驱动的布局测试。
+核图内：LY15_PROBE START/READY/FAIL、stage/reason、实际root诊断，地图/daily_badge，case/player/dx及版本。不要重读旧图、再要求信任/重开/调模式/泛查config。Console若有LOG_PATH，逐字返回精确路径，并给出规范Read或精确只读命令；不扫描Library、不猜物理路径。截图不足则列图内具体错误/缺口和唯一最小下一步。仍为注入驱动布局测试，不签真实触摸/全流程。没有READY不签布局；即便READY也只证明布置，仍需按图判断限定牌。不联网、不访问Mac、不执行、不改文件。返回短可行动结果。

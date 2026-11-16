@@ -1,0 +1,25 @@
+续 followup49，此为 followup50。福田你已判定 merged 布局通过（仅注入专项）。协调者已按你的命令只读核东门当前 hash，备份后原样 apply，并只 open 一次现有东门，一次有界等待后取了本轮唯一新图。请立即用官方 read_image 分析该新图。不要沿用 2219/2214 福田图代替东门证据，不要把 3031/3029/2909 当东门。不得伪造 READY，不得降低验收标准。注入专项不是真实触摸/全流程。不要再让用户复制日志或普通编译。若出现作者信任框，明确指出并停止（不要建议代点或再 open）。
+
+本轮事实（Asia/Shanghai / CST）：
+- 东门只读核（apply 前）：/Users/[REDACTED]/Documents/ly15_probe_cases_r40_d3d65b6_20261116_v2/dongmen/game.js 当时 13670B sha256 f965192e24349cac8cdac045a9c2fb2a0af86cda4606b8b24f882b7825f1413d；case.json 为 case=dongmen、player=baishizhou、build_tag=r40 d3d65b6；仅有旧 v2 __ly15_probe_driver.js 10966B sha256 3e120869d7cbeeeca482bfb9657e933b44b41ecd589d4091d8d65a63f8adf5a8；当时无 layout v2 driver。密封原 loader 仍 2522B sha256 32a997ceb72b71efbc26553d820d1a2de26115a5b00ac48917351ca5ab68c5a3。
+- apply_layout_probe_v2.py --approved --case-id dongmen，并传入实际 --expected-game-sha f965192e… --expected-game-bytes 13670。APPLY_EXIT=0，时间 2026-11-16 22:21:31 CST。从密封原 game.js 重组，不叠加。新备份 /Users/[REDACTED]/Documents/ly15_r40_layout_probe_v2_backup_dongmen_20261116_2219/（game.js.previous_injection 仍为 f965192e…）。未覆盖福田备份。福田 case game.js 仍为 5885befa193132c14c2705cafb95a9666f652dbe33aacaa5283aa8e81f1f4b94。
+- 当前东门 game.js 17994B sha256 ee8a2237cc98e620b9546e86588a5087eec6037028a60ac532f3c62886ecbadf；__ly15_layout_probe_driver_v2.js 15290B sha256 3e3f761bbb9608450b5913d37dec7cc1e0c2be26933cb2beb714b83bc1e3b508。旧 v2 driver 文件未改。
+- apply_manifest box 副本：/workspace/ly15_r40_layout_probe_v2_apply_manifest_dongmen_20261116_2219.json
+- 只 open 一次：/Applications/wechatwebdevtools.app/Contents/MacOS/cli open --project …/dongmen ，OPEN_EXIT=0，时间 2026-11-16 22:21:45 CST。未再 open，未点击 GUI，未清缓存，未改安全设置（CLI 自己打印了 IDE server listening，协调者未连接该端口）。
+- 一次有界约 47 秒后重新枚举（22:22:50 CST）：新出现窗口 3461，标题同样是 lingyuan15，onscreen/layer0，与 3031/3029 同 bounds，ownerPID 2840。3031 仍在（福田），3029 仍在，2909 仍为 wechatgame。本轮只新截 3461。请从图内核实是否为 dongmen（文件树/标签），模式，有无信任框。
+
+新图（screencapture -x -l 3461 exit 0，非空，未覆盖旧件）：
+Mac：/Users/[REDACTED]/Documents/ly15_r40_layout_probe_v2_shots_20261116_2222/window_3461_2222.png | 825961 bytes | 2026-11-16T22:22:58+0800
+box：/workspace/ly15-shots/window_3461_2222.png sha256 81a38b88cdc15f4bd682dd9a9a765ffe7caee3edc6f56af69d5d3dfce9871398
+
+请立即 read_image。核：
+- 是否为现有东门窗口、小游戏模式、有无作者信任框；
+- 是否有完整
+  LY15_PROBE: READY {"probeVersion":"r40-layout-ready-v2","case":"dongmen","player":"baishizhou","buildTag":"r40 d3d65b6"}
+  以及 stage/reason/placementSide/badgeBounds/plateBounds/dx/ownIconOverlap/heroOverlap/mergedHeightMatches/belowCentered/logPath/logOk；
+- 图与运行时是否同窗匹配；
+- dx 两中心 /2；below 须 abs(dx)<=0.5 且无玩家/自家图标冲突；merged 时 dx 不必为 0，不可横滑冒充居中，文字「限定」须完整。
+
+只有完整真实 READY 身份与布局字段都齐，才能明确签东门通过或不通过。若有信任框：判定为真实 GUI 阻碍，停止，给出准确窗口识别与唯一用户操作（信任并运行），不要再 open。若无完整 READY 且无信任框：整体判断本图实际可见内容与缺口，不要机械要求用户再拉高/复制/编译；实质不足则明确不签，并停止。不要建议重复 open。
+
+尽快给简明可行动结果。

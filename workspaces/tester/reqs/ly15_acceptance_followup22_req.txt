@@ -1,0 +1,3 @@
+立即用你的read_image实际读取新图/workspace/ly15-shots/layout_uninjected_current_1509.png（测试报告697KB），并与已有图/workspace/ly15-shots/layout_futian_current_1458.png比较：项目加载/配置错误/实际页面/Console。测试报告579627 CONTROL_PREPARED/exit0，579628未注入open exit0于15:09:04北京时间，重新枚举新窗口2788截图；原game.js 2522B/sha256=32a997ceb72b71efbc26553d820d1a2de26115a5b00ac48917351ca5ab68c5a3；旧manifest不证明当前身份。这些是测试报告，不代替图片证据。
+这是成对控制中的未注入副本截图，不是注入布局验收图。新目录/会话/打开顺序存在混杂，不能唯一归因注入；未注入本就不期待READY或限定牌，不据此判驱动失败。看不清、被遮挡或截图未覆盖的内容必须写未知，不猜路径/错误文案，不从文件名或exit0推断加载成功或失败。
+依据本图可证/不能证实事项，归纳一条下一最小动作；可结合followup21已开始的路径核查（项目根与miniprogramRoot、cli open --project应指向的构建根、入口相对引用存在性），但followup21因客户端会话flush中断未产出完整final，不得把未完成结论当已核实。不改文件、不访问Mac、不联网、不执行、不启动、不扫Library/被拒路径。不要要求真实触摸或全套回归，不以盲时间图签通过。

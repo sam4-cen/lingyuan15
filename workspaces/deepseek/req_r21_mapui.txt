@@ -1,0 +1,10 @@
+In /workspace/lingyuan15 (Cocos Creator 3.8.8, WeChat mini-game), integrate new map-screen readability art from 小游戏ui/ux. Assets are in /workspace/lingyuan_art/. Reference look: /workspace/r9_map_compare.png (right side).
+1. Replace the map background with /workspace/lingyuan_art/bg/map_shenzhen_px.png (new low-contrast version, 360x640). It lives in the bg subpackage (cocos/assets/bundles/bg/). Do not change MAP_POINTS.
+2. Replace all map_icons/<id>_locked.png with the new light-gray silhouettes from /workspace/lingyuan_art/map_icons/. Remove any code that darkens, tints, or lowers opacity on locked icons; show them as-is.
+3. New UI from /workspace/lingyuan_art/ui/:
+   - label_plate.png (unlocked place name) and label_plate_locked.png ("第N天开放"), 56x16, 9-slice L/R/T/B = 8/8/5/5. Stretch width to fit the text and place it directly under each icon. Text white with a dark outline and a larger font.
+   - icon_lock_16.png at the top-right corner of each locked icon.
+   - bottom_bar.png 360x56, 9-slice 8/8/4/4, as the base of the bottom action bar: hint text on the top row, 回家/收工 buttons at the bottom right. Remove the small text that overlaps the buttons.
+   - Copy badge.png in as well (spare; not used yet).
+   Put the new UI pngs in the bg subpackage when the map scene can load from it (with a fallback); otherwise put them in main and report their size. Make valid .meta files with the 9-slice borders set on the SpriteFrames.
+4. Keep the main package under 4096KB (currently about 3658KB). Run npx tsx --test test/game.test.ts and npx tsc -p cocos/tsconfig.check.json (0 errors), check that diff -rq src/core cocos/assets/scripts/core is empty, then commit ("feat: r21 地图可读性：低对比底图、灰剥影锁定图标、地名牌、底部操作栏") and print the hash plus an estimated main-package change.

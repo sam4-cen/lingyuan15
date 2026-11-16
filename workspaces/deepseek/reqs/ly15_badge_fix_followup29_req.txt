@@ -1,0 +1,4 @@
+继续仅授权的限定牌布局最小修复。协调者已逐字应用你 followup28 的补丁，尚未提交、未恢复横向滑动、未自行改逻辑。当前 HEAD 仍是 5ec8fde942bebe95c6b365d7e2b5abf1611991aa，工作树仅这两个文件有未提交改动（+13/-16）。实际 diff 已保存：/workspace/ly15_badge_fix_followup28_applied.diff；请只读该 diff 与当前 /workspace/lingyuan15 源码和测试契约，不要读旧图替代、不要操作 Mac。
+针对性检查结果：npx tsx --test test/r39.test.ts 为 3 通过、1 失败。失败用例：`r39 限定牌：4 尺寸 × 8 地点 × 4 玩家位置全覆盖，始终带字且在可视区内`。断言原文：`390x844 限定@dongmen 玩家@baishizhou (merged) 小牌压玩家`，位置 test/r39.test.ts:172 collectSides。通过的用例：五个历史组合（下方居中或 merged 兜底）、纯函数候选顺序、GameRoot 集成。你指定的 `npx tsc --noEmit -p tsconfig.json` 报 `error TS5058: The specified path does not exist: 	sconfig.json\`，这不能当作类型回归失败；请查项目现有合法检查方式，不安装包。
+约束：below 若采用必须水平居中，不能恢复横向滑动冒充 below；merged 需核既有 UI/UX 允许契约，且不能压玩家/出界/丢文字。不要为了过测删或放宽遮挡、字完整、可视区或居中断言，不改玩法数值和无关代码。若根因/修改与既有目标契约冲突，必须给出明确代码/测试证据，不要自行编新设计。
+请输出完整可应用补丁（统一 diff 或完整文件代码块，路径相对 /workspace/lingyuan15，无省略号/伪代码），并给出在 box 仓库可运行的现有针对性检查命令与期望结果。本轮不要自己改仓库文件；未实施、不 commit、不 build、不 push。

@@ -1,0 +1,28 @@
+续 followup39。小游戏 21:34 转述用户本人说“信任了”。协调者只转述本轮 Mac 正规执行结果并提交新截图，请你用官方 read_image 逐图分析。不要把转述或下午 16:30 旧图当成当前模式/信任/布局结论，不要让协调者自行判图或改代码。不写仓库、不操作 Mac、不改源码/配置/安全设置/AppID、不创建 private、不签真实触摸/全流程。注入探针不是正常触摸，不能当全流程。
+
+本轮事实（Asia/Shanghai / CST，测试/小游戏未执行这些步骤）：
+
+1) ListMachines：Mac [REDACTED]（[REDACTED]）connected=true。未重建、未 prepare、未再次 open 已有福田，未开东门，未改配置。
+
+2) 21:35 用已获准且实际用过的 JXA castRefToObject 方式重新枚举（/bin/launchctl managername=Aqua）。不能靠历史 3031 盲拍。本轮当前微信开发者工具窗口（ownerPID 均为 2840）：
+- 3031 title="lingyuan15 - 微信开发者工具 Stable 2.01.2510260" onscreen=true layer=0 bounds={X:95,Y:0,Width:1250,Height:900}
+- 3029 同标题、同 bounds、onscreen=true layer=0
+- 2909 title="wechatgame - 微信开发者工具 Stable 2.01.2510260" onscreen=true layer=0 bounds={X:94,Y:0,Width:1250,Height:900}（本轮未截，标题不是 futian 目录名）
+- 2520 "WeChat Web Devtools" layer=0，onscreen 字段未解出，未截
+- 2529 无标题 500x500，未截
+无窗口标题含 futian_cbd。因 case 的 projectname 仍是 lingyuan15，枚举无法唯一判定哪扇是 v2 福田窗，故对本轮仍为 onscreen/layer0 的两扇 lingyuan15 窗各取一张全新截图，交你从图内目录标签/模式/Console 核实。
+
+3) 新截图（/bin/test 路径事先不存在；screencapture -x -l，均 exit 0，非空；未覆盖 16:30 旧件）：
+Mac：/Users/[REDACTED]/Documents/ly15_r40_probe_shots_v2_20261116_2135/
+- window_3031_2135.png | 616456 bytes | 2026-11-16T21:35:25+0800
+- window_3029_2135.png | 494936 bytes | 2026-11-16T21:35:26+0800
+已 CopyToBox：
+- /workspace/ly15-shots/window_3031_2135.png sha256 332b462d8c6dc58cb6ee036af4328c504667998d72dd197e6d730d2d9254b6cb
+- /workspace/ly15-shots/window_3029_2135.png sha256 590ad4c5c75da5e4c1cb3999e1efb861f77734df5483db9cc963e189f7245078
+未扫描 Library，未取 USER_DATA_PATH 日志。原工程/旧 build/旧 case/旧 Documents/ly15_info 未改。
+
+请立即逐图 read_image 上述 2 张 21:35 新图，不能漏图或用 window_*_1629.png 替代。必须从图内核实：是否仍有作者“信任并运行”对话框、是否 v2 futian_cbd 路径可证、当前模式（小游戏/小程序）、加载状态、地图、限定牌，以及 Console 是否出现完整前缀：
+LY15_PROBE: READY {...}
+并核 probeVersion=r40-probe-v2、buildTag=r40 d3d65b6、case=futian_cbd、player=baishizhou、视口 390x844 是否可证、placementSide、badge/plate bounds、dx、logOk、logPath。below 与 merged 分判，不猜 CSS 换算。看不清或日志截断/故障，精确列出可见缺口；允许以故障截图说明现状，但不签通过。没有完整 READY 前缀则不能把截图当成功布局证据。
+
+若福田已有明确有效证据（完整 READY 且关键字段可核），明确写出，并给出仅 open 已 prepare 的现有 /Users/[REDACTED]/Documents/ly15_probe_cases_r40_d3d65b6_20261116_v2/dongmen 一次的最小取证命令（先核路径存在及 manifest/tag，不新建 cases）。若仍有新作者信任框或模式/READY 不成立，只报当前实际阻塞，下一步交小游戏用户所在会话处理，不要建议协调者代点或做全局信任，不要现在 open 东门。尽快给简明可行动结果。

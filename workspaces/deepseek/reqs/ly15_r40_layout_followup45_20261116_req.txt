@@ -1,0 +1,42 @@
+续 followup44，此为 followup45。协调者只转述与原样提取，全部分析、代码生成、看图、判读由你完成。不要让协调者自行改逻辑或运行模拟游戏。此轮先只输出方案与完整代码块；不要让协调者在你给出完整 apply/运行边界之前就去改 Mac。不改游戏源码/密封 build/配置/AppID/基础库，不清缓存，不扫 Library，不访问运行时 URL，不猜 Mac 上 USER_DATA_PATH 宿主路径。
+
+父会话已独立 ReadTranscript 核小游戏 position320、用户 cu:301680644 的完整 DIAG。旧的“初始化失败/卡在 await”假设已被新证据推翻，不要再调查未证 await，也不要改游戏初始化。初始化已完成。
+
+已核真实日志要点（运行时 logPath 实际为 http://usr/ly15_init_diag_futian_cbd_baishizhou_1794836971530_992478.log，不是先前截图误读的 99247a；不要访问该 URL）：
+- probeVersion=r40-init-diag-v1，case=futian_cbd，player=baishizhou，buildTag=r40 d3d65b6
+- SAMPLE 1552ms、5141ms：scene=false
+- SAMPLE 15145ms：真实 GameRoot，当时 game=null
+- FINAL elapsedMs=sampleAtMs=30005，reason=BOUNDED_DIAG_COMPLETE，errors=[]
+- scene=main，nodesVisited=32，可见 screen/HUD/bg_fortune/fortune_tube/build_tag 等
+- candidateCount=1，instanceofGameRoot=true，节点在 Canvas 场景内，active/valid/enabled 全为 true
+- 最终 gameType=object，gamePresent=true，acceptFortune/startGame 均为 function，cfg 为 object，logOk=true
+
+请接纳这份真实 FINAL，完成最小测试 driver 的就绪判断修正：
+- 必须保留有界等待；
+- 就绪条件必须是真实可用的 GameRoot 以及可用的 game 方法（如 acceptFortune/startGame/cfg），不要把 15s 时 game 仍为 null、30s 才出现当成初始化失败；
+- 不得无界等待，不得反复重试；
+- 只有验证真实组件与可用 game 后才布置布局专项状态，别盲写 G，不输出伪 READY；
+- dx 若输出，必须对 badge/plate 两个中心均 /2（磁盘 followup42 final 第 345-346 行已核是 /2；先前文字 /10 是笔误）；
+- 完整真实前缀须为 LY15_PROBE: READY {...}，至少含 probeVersion、case、player、buildTag、placementSide、badgeBounds、plateBounds、dx；
+- below 必须严格水平居中且不与玩家/自家图标冲突，不安全应 merged，不可横滑冒充居中；
+- 注入专项不是真实触摸/全流程；不得仅凭 gamePresent 或 DIAG FINAL 签布局通过。
+
+优先复用已信任的现有福田 case，不重建、不 prepare、不 open 福田、不新建 case。修改前备份到全新目录，核密封原 game.js 与当前注入 hash，从密封未注入原 game.js 重组，不要叠加在当前 DIAG 注入或旧 v2 注入上。保留当前 DIAG 备份与原 v2 备份及清单，不要覆盖：
+/Users/[REDACTED]/Documents/ly15_r40_init_diag_backup_20261116_2145
+
+当前精确 hash：
+- 密封原 loader：/Users/[REDACTED]/Documents/ly15_r40_buildroot_d3d65b6_20261116/wechatgame/game.js ，2522B / 32a997ceb72b71efbc26553d820d1a2de26115a5b00ac48917351ca5ab68c5a3
+- 当前福田 DIAG 注入：.../ly15_probe_cases_r40_d3d65b6_20261116_v2/futian_cbd/game.js ，sha 776ec99d330838705588ab10c8a0ad8f409a0c789d8a72a22901efa5c63515ed
+- 东门 case 已 prepare 但尚未 open：.../v2/dongmen ；仅当福田出现完整有效 LY15_PROBE READY 且专项证据完整后，才允许 open 现有东门一次。若出现新作者信任框或必须 Mac GUI，按真实阻碍停止，不要编可点击能力，不要重复 open。
+- case_manifest.json 仍是历史 v2，不能作当前 hash 依据。
+- apply_manifest：/workspace/ly15_r40_init_diag_apply_manifest_20261116_2145.json
+- 现有 v2 布局 driver 可参考但须按上述就绪条件修正：/workspace/ly15_probe_tools_r40_d3d65b6_20261116_v2/probe_driver.js
+- 现有 init diag driver：/workspace/ly15_r40_init_diag_tools_20261116_2145/init_diag_driver.js
+- GameRoot.ts、MapLayout.ts、密封 assets/main/index.js 如需对照可只读既有路径。
+- followup44 final：/workspace/ly15_r40_init_diag_followup44_20261116_final.txt
+
+现有官方 CLI 无 compile/run 证据，不要用 preview/auto/cache/open 冒充编译。写测试入口后若现有窗口自动刷新，可等一次有界完成再取证；若无自动运行，只说明最小必要 GUI 动作，不要要求用户重复编译碰运气，不要编按钮路径。
+
+请交付完整文件代码块（无省略号/伪代码），明确文件名、全新备份目录、apply 命令、hash 门禁、东门仅在福田验收通过后的最小 open/取证步骤与停止条件。建议 box 提取目录（必须原先不存在）：
+/workspace/ly15_r40_layout_probe_tools_20261116_2154/
+协调者将原样提取并只做你要求的 box 语法/只读检查，然后在授权范围内按你的方案连续执行，不再向你请示每一步。尽快给简明可行动方案。

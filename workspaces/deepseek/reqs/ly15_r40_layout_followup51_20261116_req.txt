@@ -1,0 +1,41 @@
+续 followup50，此为 followup51。福田 merged 注入专项通过证据已接收保留，不要再重跑福田，不要再签或改写福田结论。请纠正上轮表述：东门「无 START/READY」只说明当时未取得运行证据，不等于布局失败，也不能证明已无进一步合规自动取证步骤；不能把 open/apply 成功当成专项已运行。
+
+本轮目标：最小东门启动核验。请你（官方 DeepSeek）只读对比已正常福田与现有东门的入口注入链、公开工程启动配置、以及已有可见错误，区分：1) 确定的脚本/配置差异；2) 注入已落地但尚未执行；3) 只是当前缺少运行证据。不要套用微信 fork、t124u 21:34:43 旧 Console、或未证的基础库/__global 根因。不要降低验收标准，不得伪造 READY。不要建议重开/刷新/普通编译/新 case、不要改游戏源码/密封 build/配置/AppID/基础库/玩法、不要扫 Library、不要猜内部接口或 USER_DATA_PATH、禁止开启或使用内部/服务/CLI 打印端口绕行（上次 CLI 曾打印 127.0.0.1:11347，协调者未连接，也不得使用）。不要让用户搬运长日志。东门已无信任框，不要再把它说成信任问题。注入专项不是真实触摸/全流程。
+
+本轮协调者只读采集（Asia/Shanghai / CST，2026-11-16 22:24:53 起核 hash；未重开、未新截图、未改任何文件）：
+
+只读副本目录：/workspace/ly15_r40_dongmen_startup_compare_20261116_2224/
+（Mac 原件 hash 与 box 副本已核一致）
+
+- futian_cbd.game.js 17997B sha256 5885befa193132c14c2705cafb95a9666f652dbe33aacaa5283aa8e81f1f4b94 mtime 2026-11-16T22:13:17+0800
+- dongmen.game.js 17994B sha256 ee8a2237cc98e620b9546e86588a5087eec6037028a60ac532f3c62886ecbadf mtime 2026-11-16T22:21:31+0800
+- futian_cbd.project.config.json 530B sha256 f8a0587b78a067610fbe7dc8071f892d11c41f164f7841453b2428f42941ecbc mtime 2026-11-16T21:34:06+0800
+- dongmen.project.config.json（当前）564B sha256 fd33293bf50d5e3c9497e8955ad3a56517db61c726854aa0f68b5e5560580bed mtime 2026-11-16T22:22:15+0800（open 之后）
+- dongmen.project.config.json.previous（apply 时备份，尚未被后来 mtime 覆盖的原件）395B sha256 9050e72a25767e24d1c509aa98fc82917317bf3adb8fbb967abd20fced0461a7 mtime 2026-11-16T16:14:20+0800
+- sealed.project.config.json 530B sha256 f8a0587b78a067610fbe7dc8071f892d11c41f164f7841453b2428f42941ecbc mtime 2026-11-16T21:34:19+0800（与当前福田 project.config 同 hash）
+- futian_cbd.case.json 210B sha256 ea458fec4093a189c248c8d99006bebb6795821ec94e0323fab95f7addaa10ba
+- dongmen.case.json 204B sha256 bccf0254151bd0ee8b73294659111ca9f457a4c60259a0da24109b078f612fb4
+- futian_cbd.game.json 与 dongmen.game.json 均为 298B sha256 ba51fb6c9df785c056f17da834ae3ef880a9b9652e68cd8039b7ea7eca879d9e
+
+Mac 上两 case 及密封工程经 hash 确认相同、本轮未再复制的文件：
+- application.js 3302B sha256 359f85dd922e2568aa991af95a5c356a0102042c8918252987bfbd37f2153eb2
+- ly15_info.json 320B sha256 7b6438e2b32e7d75ffa2281ecb0be786c33ae9278e2bdd0ebb40769174e86f11
+- r40_build_manifest.json 1259B sha256 8f5e13a41d877db19c46eafca7fd8c7864b94b50f6e8258808d54033bb558196
+- __ly15_layout_probe_driver_v2.js 15290B sha256 3e3f761bbb9608450b5913d37dec7cc1e0c2be26933cb2beb714b83bc1e3b508（与 box /workspace/ly15_r40_layout_probe_tools_20261116_2210/layout_probe_driver_v2.js 相同）
+- __ly15_probe_driver.js 10966B sha256 3e120869d7cbeeeca482bfb9657e933b44b41ecd589d4091d8d65a63f8adf5a8
+project.private.config.json：福田、东门、密封均为 absent（不要创建）。
+
+清单：/workspace/ly15_r40_dongmen_startup_compare_20261116_2224/inventory.json
+apply_manifest：福田 /workspace/ly15_r40_layout_probe_v2_apply_manifest_futian_20261116_2210.json ；东门 /workspace/ly15_r40_layout_probe_v2_apply_manifest_dongmen_20261116_2219.json
+已有东门图（不要当作布局失败，可作当时可见错误/是否已运行的只读依据，不要要求再截同一状态）：/workspace/ly15-shots/window_3461_2222.png sha256 81a38b88cdc15f4bd682dd9a9a765ffe7caee3edc6f56af69d5d3dfce9871398
+上轮 final：/workspace/ly15_r40_layout_followup50_20261116_final.txt
+公开 CLI help：/workspace/ly15_r40_startup_followup41_cli_help.txt （无 compile/run；preview/auto/cache/open 不能冒充编译；不得用端口）。
+
+请你实际读取上述 game.js / project.config / case.json / game.json / driver / 已有图，不要只根据 hash 臆断。然后给出：
+1) 注入链是否已按「密封原 game.js + newline + prelude + layout_probe_driver_v2.js」落地；prelude 的 case/player/buildTag/approved 是否正确；两 case game.js 差异是否仅限预期的 case 名等。
+2) 公开启动配置的确定差异（特别是东门当前 project.config 与 apply 备份、与福田/密封是否不同），这些差异能否确定导致「尚未执行」或只是工具改写、不能当作根因的猜测。
+3) 2222 图可见错误是否属于启动未执行的证据，还是其他已证明问题。
+4) 若发现确定的最小测试 driver/apply 缺陷（非猜测），给出完整可应用修正文件与精确 runbook（全新备份目录、核当前东门 game.js ee8a2237… 与密封 32a997ce…、不叠加、不改游戏源码）。协调者只会原样执行一次，再一次有界等待后取唯一必要新证。
+5) 若没有确定缺陷、或公开正规能力无法在不 open/刷新/编译、不改安全设置/端口的前提下自动让已打开的东门窗口跑起来并取证：明确写清已排除路径与缺口，不要假装已有自动办法。不要把「请用户再复制日志」当方案。若唯一必要是 GUI 动作，给出可靠窗口识别：现有东门窗口（本轮枚举曾为 3461，标题 lingyuan15，须以顶部标签 dongmen、文件树 DONGMEN 且含 __ly15_layout_probe_driver_v2.js 为准；不要用 3031 福田或 3029/2909），以及最小动作（不要再要求信任，因已无信任框）。
+
+尽快给简明可行动结论。不要改仓库游戏源码。

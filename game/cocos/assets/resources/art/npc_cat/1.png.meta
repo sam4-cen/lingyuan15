@@ -15,15 +15,16 @@
       "id": "6c48a",
       "name": "texture",
       "userData": {
-        "wrapModeS": "repeat",
-        "wrapModeT": "repeat",
+        "wrapModeS": "clamp-to-edge",
+        "wrapModeT": "clamp-to-edge",
         "minfilter": "nearest",
         "magfilter": "nearest",
         "mipfilter": "none",
         "anisotropy": 0,
         "isUuid": true,
         "imageUuidOrDatabaseUri": "75e3363b-a68c-55e7-88db-a22c2f76dbca",
-        "visible": false
+        "visible": false,
+        "premultiplyAlpha": false
       },
       "ver": "1.0.22",
       "imported": true,
@@ -39,7 +40,7 @@
       "id": "f9941",
       "name": "spriteFrame",
       "userData": {
-        "trimType": "auto",
+        "trimType": "none",
         "trimThreshold": 1,
         "rotated": false,
         "offsetX": 0,
@@ -54,7 +55,7 @@
         "borderBottom": 0,
         "borderLeft": 0,
         "borderRight": 0,
-        "packable": true,
+        "packable": false,
         "pixelsToUnit": 100,
         "pivotX": 0.5,
         "pivotY": 0.5,
@@ -114,7 +115,10 @@
           ]
         },
         "isUVChanged": false,
-        "imageUuidOrDatabaseUri": "75e3363b-a68c-55e7-88db-a22c2f76dbca@6c48a"
+        "imageUuidOrDatabaseUri": "75e3363b-a68c-55e7-88db-a22c2f76dbca@6c48a",
+        "premultiplyAlpha": false,
+        "generateMipmap": false,
+        "sizeMode": "CUSTOM"
       },
       "ver": "1.0.12",
       "imported": true,
@@ -128,6 +132,7 @@
     "type": "sprite-frame",
     "hasAlpha": true,
     "fixAlphaTransparencyArtifacts": false,
-    "redirect": "75e3363b-a68c-55e7-88db-a22c2f76dbca@f9941"
+    "redirect": "75e3363b-a68c-55e7-88db-a22c2f76dbca@f9941",
+    "premultiplyAlpha": false
   }
 }

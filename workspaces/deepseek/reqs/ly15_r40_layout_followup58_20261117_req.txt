@@ -1,0 +1,35 @@
+续 followup57，此为 followup58。福田 merged 注入专项通过结论保留，不要重跑。东门尚未通过，不要冒签，不要降低验收：必须实证可见 badge 位于对应 dongmen marker 的实际标签。注入专项不是真实触摸/全流程。不要建议用户编译/复制日志/调窗口，不要建议开端口、改安全设置、扫 Library、读取 http://usr 或猜测 USER_DATA_PATH。协调者没有去读 wx 本地日志文件；唯一新画面证据是下面这一张新图及其全分辨率分片。请本轮实际 read_image 这些图，并在需要时再读实际源码/driver，不要只依赖 session 缓存。
+
+已执行（只读诊断已应用到现有东门，福田/密封未改）：
+- 从你给出的完整 v4 文件提取并语法检查后应用。工具目录 /workspace/ly15_r40_layout_probe_tools_20261117_0010/ 与 Mac Documents 同名。
+  layout_probe_driver_v4.js 22029B sha256 625c2872aac5d7d1f34844a1d29e8cf5d3b2a17b46e30626a5f1efac1e8cb071
+  apply_layout_probe_v4.py 7614B sha256 7bb990af49ddb07e14b40ae601270ce4998d05e305f572847bdf697e960d7345
+- 应用前核门均匹配：当时东门 game.js adbbdb8a… 18720B，v3 driver 066a0ff0… 16016B，密封 32a997ce… 2522B。
+- 从密封 game.js + 换行 + prelude（approved, case=dongmen, player=baishizhou, buildTag=r40 d3d65b6）+ v4 driver 重组，不叠加；写入 __ly15_layout_probe_driver_v4.js，未覆盖 v2/v3。
+- 备份：/Users/[REDACTED]/Documents/ly15_r40_layout_probe_v4_backup_dongmen_20261117_0010/（含 game.js.previous_injection = 原 v3 注入 adbbdb8a…）。
+- 应用后东门 game.js 24733B sha256 e432925c72059c7063ea51ea9c35b878ed95f3f712a4dc2998c6e7d8da5268e5，组成核验成立。v3/v2 driver、密封、福田 game.js 5885befa… 均未改。
+- apply manifest 副本：/workspace/ly15_r40_layout_probe_v4_apply_manifest_dongmen_20261117_0010.json sha256 02c333d0a3fc26aad9c8bf17bb42d015627106a1a025e301c4348bba9814fc46
+
+取证：
+- 无法在不截图的情况下确认是否自动刷新。按 runbook，对现有东门做了一次已核公开 cli open（OPEN_EXIT=0，约 1.5s，打印了 127.0.0.1:11347，未连接、未用该端口）。
+- open 前窗口：2909 wechatgame、3031 lingyuan15、3461 lingyuan15。open 后约 67s 再枚举：仍是这三个主窗口，没有新窗口，未见标题为信任/权限的新对话框。因此必须如实记录：此次 open 可能只是复用了已有窗口 3461，不保证重置了运行时。
+- 只拍了一张新图，窗口是重新枚举后的 3461（历史东门窗；3031/2909 不作东门证据）。时间 2026-11-17 00:12:50 CST（Asia/Shanghai）。
+- 新图：/workspace/ly15-shots/window_3461_0012.png 2724x2024 PNG sha256 a9bfbb6294f7ffe21001929bed001d1b4aee204a869560a05ca8ea44e655d19a
+- 为避免整窗缩小误读，已按原图像素切 3x2 未缩放分片（请至少读含模拟器地图、名牌文字、Console 的分片；不够清可指出精确裁切盒，不要要求再截 Mac 窗口）：
+  r0c0 /workspace/ly15-shots/window_3461_0012_tiles/window_3461_0012_tile_r0c0_0-0-908-1012.png box=[0,0,908,1012] sha256 c382d6988f903d26aae9a75af92210c27d885c2518c5f2d2c5adc18a6a33c0b3
+  r0c1 .../window_3461_0012_tile_r0c1_908-0-1816-1012.png box=[908,0,1816,1012] sha256 27ba769095bfe9895286a6ff3c77c8cdacf610b9bf3f137f9a9408fffe117b89
+  r0c2 .../window_3461_0012_tile_r0c2_1816-0-2724-1012.png box=[1816,0,2724,1012] sha256 f7294182fe785c089b0d6e3379009c2a8d2702a46e4a4ffac4f1378ffb22abf7
+  r1c0 .../window_3461_0012_tile_r1c0_0-1012-908-2024.png box=[0,1012,908,2024] sha256 dc5cb8a2f73abfcb0667cf4934ccabf554aec7358cc358943e89837d77ca8842
+  r1c1 .../window_3461_0012_tile_r1c1_908-1012-1816-2024.png box=[908,1012,1816,2024] sha256 7750d7c9aa315fa89a737e0a36203f98509b903fe75c3a36670296c60af82953
+  r1c2 .../window_3461_0012_tile_r1c2_1816-1012-2724-2024.png box=[1816,1012,2724,2024] sha256 44aa6b7da766d4ad6589c980e6b0e99d173eeddefa970aa269897b431242c1e1
+- 对照原图 0003 与 followup56/57 final 仍在原路径，仅作对照，不要把 0003 当作本轮新证据。
+
+请先判断这张新图是不是东门 case 窗（顶栏/目录树是否 dongmen / DONGMEN / v4 driver，而不是 futian_cbd 或密封 wechatgame）。然后：
+
+1) 必须依据画面是否出现 `LY15_PROBE: DIAG_V4` 或 `probeVersion=r40-layout-ready-v4`（或完整 START 且 version 为 v4）来判断新诊断是否实际运行。仅有第7天地图、或仍是 r40-layout-ready-v3 / 旧 READY，都不能声称 v4 已运行。若 Console 被截断，如实抄录可见行，不要补造缺失字段。
+2) 若 v4 已运行：逐条抄录全部可见 DIAG_V4 / BADGE[i] / CASE_MARKER / UNIVERSITY_MARKER / counts / DIAG_HOLD 或 READY 字段（尤其全部 daily_badge 的 parent 链、marker、plateLabel/badgeLabel、active/activeInHierarchy、local/world/screen、onScreen；case/university marker 的份数与位置；G.location 与 dailySpecialLocationId；screen 份数）。用这些真实数据区分：不可见/屏外另一枚 badge、旧节点/screen 残留或复用、测量错误、配置/命名不匹配、或其他已证原因。并核对可见红「限定」所贴名牌文字（东门还是大学城）。
+3) 若新诊断并未实际运行：明确写「未取得新诊断运行证据」，不要写成布局不通过；指出画面上实际看到了什么；不要建议再循环截图或让用户普通编译。
+4) 若已能用本次数据确定测试工具缺陷：给出完整可应用最小修正（仅测试工具、仅现有东门、从密封重组、核当前 game.js e432925c… 与密封 32a997ce…、全新备份、不叠加、不动福田）。若已能确定游戏限定牌相关 bug：给出完整最小 patch 与专项测试，并说明应按既有 Git/测试/独立源副本 Mac 构建流程处理；不得擅改密封 build、原 Documents/lingyuan15、配置或 AppID。未证则不要给游戏 patch。
+5) 无论结论如何，东门只有在「v4 身份字段完整且可见 badge 位于对应 dongmen marker 实际标签」时才能签通过；否则给出根因实证，或仍缺的具体证据。不要把只读诊断本身说成超范围。
+
+尽快给出可行动结论。

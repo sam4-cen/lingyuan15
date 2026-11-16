@@ -1,0 +1,11 @@
+r28 修复（基于 4e2a551，只改 UI，不动 src/core 数值逻辑）。完成后：npm test 全过、tsc 0 错误、core 同步，Version.ts 标 r28，git commit "fix: r28 地图安全区+提示/按钮/断行/日期"。
+
+【必须修】地图排版没扣掉底栏高度和底部安全区（wx.getSystemInfoSync().safeArea / screenHeight 差值，网页版按 env(safe-area-inset-bottom) 或 0）。在微信开发者工具 iPhone 12/13 下，世界之窗地铁站图标被底栏挡住一半、名字牌看不见。要求：地图可视区域 = 屏幕高 - 顶栏高 - 底栏高 - 顶/底安全区；所有地点图标+名字牌必须完整落在可视区域内（留 ≥8 设计 px 边距），包括右下角。加单测：在 iPhone 12/13 尺寸（390x844，safeArea bottom 34）、iPhone SE（375x667，无安全区）、宽屏 360x780 三种视口下，断言每个地点的图标和名字牌包围盒都不与底栏/顶栏/安全区相交。参考截图 /workspace/ly15-shots/r18_dt_map_d1.jpg、r18_dt_map_special.jpg。
+
+【顺手改】
+1. 长按箱子的提示「剩余体力 95 / 本次将扣 15.9」左右两头压到「换地点」「回家」按钮上沿：提示条要放在按钮上方并留 ≥6 设计 px 间距，宽度超出就缩到可用宽度内或换两行。截图 r18_hold_hint_zoom.png。
+2. 睡觉按钮上「睡觉」两字夹在月亮和床之间压到床头：把文字移到按钮图下方/底部空白区（或按钮图不与文字重叠的位置），按下态同样处理。截图 r18_dt_sleep_normal_vs_pressed.png。
+3. 失败页「翻垃圾桶」在词中间断行（翻垃/圾桶）：中文换行不能拆开词，给这类文案加不换行处理（整词换行或缩小容器内排版），检查所有失败页/事件文案。截图 r18_dt_fail_security.jpg。
+4. 认证页日期跟着地区设置（11/10/2026 vs 2026/11/10）：统一写成固定格式 YYYY.MM.DD，自己格式化，不用 toLocaleDateString。
+
+【不用改】card_daily/card_day、inv_grid_*、loc_bg_compound、loc_fastfood_back、loc_night_market、fx_flashlight/fx_clash 的现状保持，不要删资源（避免误伤）。主包必须保持 < 3950KB。

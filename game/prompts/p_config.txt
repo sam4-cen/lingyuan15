@@ -73,7 +73,7 @@
 - sleep(): 在家：可能触发夜间温情（nightWarmthChance，饱腹+15 心情+15），扣当日饱腹（按阶段 dailyHunger），心情 moodPerDay，体力回满（maxStamina 包含落脚点加成）；饱腹<=0 → phase='lost' 并生成 deathCause；如果 day==totalDays 且活着 → phase='won'；否则 day+1，minute=dayStartMinute，清空 floor、banned、raining、catLuck，抽新签 phase='fortune'；记录 history
 - collapse(): 不在家体力耗尽或午夜回不了家时调用：按 SLEEP_SPOTS 概率选，钱不够按公园；bench 20% 被保安叫醒体力再 -10；背包物品随机丢 floor(n*0.5)；floor 清空；不卖货；扣当日饱腹；心情 moodPerDay；饱腹<=0 失败；第二天体力=spot 体力；生成 lastCollapse；phase='collapsed'；然后需调用 wakeUp() 进入下一天 fortune（若 day==15 且活着则 won）
 - wakeUp()
-- deathCause：中文沙雕死因，含天数，例如「第 4 天，舍不得吃那块蛋挞，饿晕了」，若包里/今天出过可吃的东西没吃就用它的名字
+- deathCause：中文沙雕死因，含天数，例如「第 4 天，舍不得吃那半块蛋挞，饿晕了」，若包里/今天出过可吃的东西没吃就用它的名字
 - 所有数值从 cfg 读，不硬编码。
 
 # 设计文档
@@ -87,7 +87,7 @@
 - 一句话：失业了，身上 0 元，在深圳靠翻垃圾开盲盒活满 15 天。
 - 目标：拉前期流量。玩法是短局、上头，结局卡用来分享。
 - **通关**：活满 15 天，获得「深圳生存成功」稀有证书。**没有逆袭结局。**
-- **失败**：饱腹降到 0 时游戏结束，出「你在深圳活了 X 天」加一句沙雕死因，例如「第 4 天，舍不得吃那块蛋挞，饿晕了」。
+- **失败**：饱腹降到 0 时游戏结束，出「你在深圳活了 X 天」加一句沙雕死因，例如「第 4 天，舍不得吃那半块蛋挞，饿晕了」。
 - 体力耗尽**不算失败**，只会当场倒下（见第 7 节）。
 
 ## 2. 核心循环（搜打撤）

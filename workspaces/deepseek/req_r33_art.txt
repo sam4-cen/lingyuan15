@@ -1,0 +1,6 @@
+r33 美术替换（基于 ecd4611/r32，只改资源和 UI，不动 src/core）。完成后：npm test 全过、tsc 0 错误、core 同步，Version.ts 标 r33，git commit "feat: r33 事件背景/签纸/保安/钱包新图"。主包 < 3950KB（新背景放 bg 分包）。所有 PNG 用 Point 过滤、整数倍缩放、坐标对齐整数物理像素。预览 /workspace/r32_art_preview.png。
+1. 事件背景（180×320，用法同 event_night，全屏铺满）：/workspace/lingyuan_art/bg/event_rain.png（下雨）、event_patrol.png（巡逻大叔）、event_guard.png（保安）、event_auntie.png（阿姨）复制到 cocos/assets/bundles/bg/；做一个事件类型→背景的映射表，其他事件继续用 event_night。用这四张专属背景时遮罩降到 25%，event_night 保持 40%。
+2. 签纸：/workspace/lingyuan_art/ui/fortune_paper.png（96×160），九宫格 insets L18/R18/T32/B33；文字区 (21,35)-(74,123)（54×89 源像素），签文最大宽度 = 文字区宽 80%，走统一断行函数不断词；亮底，签文用纯色 #1a1020、不描边（pixel_plain）。替换原签纸。「还差¥5」仍在「重抽」上方 8 设计px。
+3. 保安：/workspace/lingyuan_art/sprites/npc_guard.png（32×32，脚底锚点 (16,30)）替换原 npc/npc_guard_0.png，锚点设为 (16/32, 1-30/32)，整数倍放大规则同其他 NPC。
+4. 钱包：/workspace/lingyuan_art/icons/wallet.png（16×16）直接替换项目中原钱包图标。
+单测：映射表四个事件用对应背景、遮罩透明度 25%/40%；签文在 360/375/390 宽下不越出文字区；保安锚点正确。

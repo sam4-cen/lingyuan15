@@ -1,0 +1,7 @@
+请基于下列实际 --help 结果纠正上一轮假设：不能把 --help 当作帮助成功，也不能再建议同一条 --help 作为已证实入口。
+
+Mac 标准 --help 已由小游戏实际运行。协调者正规 Read /Users/[REDACTED]/terminals/579631.txt：PID 26884，command 为 CocosCreator --help，无 --project/--build；started 2026-11-16T08:06:25.495Z（UTC），snapshot 时 running_for_ms=6012、status=running。stdout 完整可见内容只有：init **** success；Load profile failed: local://editor/packages.json；local://editor/package.json；project://editor/package.json；local://packages/ui-kit.json；Arguments: 可执行路径:true，help:true，dev:false，home:/Users/[REDACTED]/.CocosCreator。没有任何 --build / platform / buildPath / outputName 正文，也没有退出码。协调者已交小游戏仅核本 PID 真实终态，并在必要时停止本次进程且不影响原编辑器，不重试 flag。你不要访问 Mac、不要执行 CLI、不要重试 --help。
+
+继续只读公开官方文档，获取确切 Cocos Creator 3.8 微信小游戏命令行构建参数。上一轮官方页面被导航截断，不等于官方无能力。可用公开官方文档仓库 GitHub 目录或公开 API 先查实际 Markdown 路径再读 raw，不要重复猜已 404 的路径；也可用公开 HTML 正文提取。不进本机 App 内部或被拒 Automator 路径，不 Mac 执行、不装包、不使用浏览器、不调用其他模型。仅由你（用户 DeepSeek）负责研究判断。
+
+目标：给出最小真实官方命令，以及新输出根语义/是否附带平台子目录；必须保留旧 build，只写全新独立源码副本与全新输出。若只证实部分，明确哪些已证、哪些未知；可给在新独立副本/全新输出上有据的最小验证提案，不盲编字段。新 Mac 源码与 Version 已备，无需重核基线。研究限额：≤3 次检索、≤5 次读取，但允许用官方公共 repo 目录定位，避免再空转同一导航页。交付完整可引用正文短引与准确 URL，以及未实施结论。

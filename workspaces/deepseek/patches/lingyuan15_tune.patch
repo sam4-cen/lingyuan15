@@ -1,0 +1,53 @@
+--- a/src/core/config.ts	2026-11-04 00:40:18.719935811 +0800
++++ b/src/core/config.ts	2026-11-04 00:49:19.788136887 +0800
+@@ -740,7 +740,7 @@
+     {
+       fromDay: 1,
+       toDay: 4,
+-      dailyHunger: 20,
++      dailyHunger: 12,
+       lootMul: 1.0,
+       patrolBonus: 0,
+       rivalEnabled: false,
+@@ -750,8 +750,8 @@
+     {
+       fromDay: 5,
+       toDay: 9,
+-      dailyHunger: 31,
+-      lootMul: 0.9,
++      dailyHunger: 38,
++      lootMul: 0.7,
+       patrolBonus: 0.1,
+       rivalEnabled: true,
+       badFortuneBonus: 0,
+@@ -760,8 +760,8 @@
+     {
+       fromDay: 10,
+       toDay: 15,
+-      dailyHunger: 76,
+-      lootMul: 0.8,
++      dailyHunger: 66,
++      lootMul: 0.5,
+       patrolBonus: 0.1,
+       rivalEnabled: true,
+       badFortuneBonus: 0.15,
+@@ -782,7 +782,7 @@
+   mishapPerSec: 0.06,
+   maxHoldSec: 6,
+ 
+-  itemsPerBox: { small: [1, 1], big: [1, 3] },
++  itemsPerBox: { small: [1, 1], big: [1, 2] },
+   bigBoxBonusGood: 0.1,
+   boxesPerLocation: [3, 4],
+   boxCountFortuneDelta: {
+@@ -841,8 +841,8 @@
+     { w: 4, h: 4, cost: 90 },
+   ],
+ 
+-  foodPrice: 8,
+-  foodHunger: 30,
++  foodPrice: 20,
++  foodHunger: 20,
+   rerollBase: 5,
+   rerollStep: 5,
+ 

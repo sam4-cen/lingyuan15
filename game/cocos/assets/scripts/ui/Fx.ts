@@ -12,6 +12,8 @@ import {
   director,
 } from 'cc';
 import { uiNode } from './UI';
+import { PixelFont } from './PixelFont';
+import { pxFont } from './PixelFontMetrics';
 
 /**
  * Fx —— 纯代码缓动 / 特效工具。
@@ -182,6 +184,46 @@ export class Fx {
       .start();
   }
 
+  /** 画面边缘渐暗暗角（体力/饱腹双低时用）。on=false 时移除。 */
+  static vignette(root: Node, on: boolean): void {
+    if (!root || !root.isValid) return;
+    const NAME = 'fx_vignette';
+    const old = root.getChildByName(NAME);
+    if (!on) {
+      if (old) old.destroy();
+      return;
+    }
+    if (old && old.isValid) {
+      old.setSiblingIndex(root.children.length - 1);
+      return;
+    }
+    const size = view.getVisibleSize();
+    const w = Math.max(720, size.width);
+    const h = Math.max(1280, size.height);
+    const n = uiNode(NAME);
+    n.parent = root;
+    const ut = n.addComponent(UITransform);
+    ut.setContentSize(w, h);
+    n.setPosition(0, 0, 0);
+    const g = n.addComponent(Graphics);
+    const bands = 7;
+    for (let i = 0; i < bands; i++) {
+      const t = 8 + i * 9;
+      const alpha = 12 + i * 10;
+      g.fillColor = new Color(0, 0, 0, alpha);
+      // 上下左右四条边，越靠边缘越暗
+      g.rect(-w / 2, h / 2 - t, w, t);
+      g.fill();
+      g.rect(-w / 2, -h / 2, w, t);
+      g.fill();
+      g.rect(-w / 2, -h / 2, t, h);
+      g.fill();
+      g.rect(w / 2 - t, -h / 2, t, h);
+      g.fill();
+    }
+    n.setSiblingIndex(root.children.length - 1);
+  }
+
   /** 屏幕四边呼吸光晕。on=false 时移除 */
   static edgeGlow(root: Node, color: Color, on: boolean): void {
     if (!root || !root.isValid) return;
@@ -294,16 +336,20 @@ export class Fx {
     n.setPosition(pos ? pos.x : 0, pos ? pos.y : 0, pos ? pos.z || 0 : 0);
 
     const ut = n.addComponent(UITransform);
-    ut.setContentSize(240, 40);
+    ut.setContentSize(400, pxFont(12) + 16);
     ut.setAnchorPoint(0.5, 0.5);
 
     const label = n.addComponent(Label);
     label.string = text;
-    label.fontSize = 28;
-    label.lineHeight = 32;
-    label.color = color ? color.clone() : new Color(255, 255, 255, 255);
+    label.fontSize = pxFont(12);
+    label.lineHeight = pxFont(12);
+    const textColor = color ? color.clone() : new Color(255, 255, 255, 255);
+    label.color = textColor;
     label.horizontalAlign = Label.HorizontalAlign.CENTER;
     label.verticalAlign = Label.VerticalAlign.CENTER;
+    label.overflow = Label.Overflow.CLAMP;
+    label.enableWrapText = false;
+    PixelFont.apply(label, { color: textColor, bg: 'dark' });
 
     const op = n.addComponent(UIOpacity);
     op.opacity = 255;

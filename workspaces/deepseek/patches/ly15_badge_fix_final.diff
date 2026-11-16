@@ -1,0 +1,205 @@
+diff --git a/cocos/assets/scripts/GameRoot.ts b/cocos/assets/scripts/GameRoot.ts
+index 3cf8d12..ec42254 100644
+--- a/cocos/assets/scripts/GameRoot.ts
++++ b/cocos/assets/scripts/GameRoot.ts
+@@ -980,6 +980,7 @@ export class GameRoot extends Component {
+           gap: 2,
+           minClearance: 2,
+           blockers,
++          mergedBlockers: heroRect ? [placement.icon, heroRect] : [placement.icon],
+           bounds: badgeBounds,
+         });
+       }
+diff --git a/cocos/assets/scripts/ui/MapLayout.ts b/cocos/assets/scripts/ui/MapLayout.ts
+index bf71ea4..7b37e9b 100644
+--- a/cocos/assets/scripts/ui/MapLayout.ts
++++ b/cocos/assets/scripts/ui/MapLayout.ts
+@@ -277,6 +277,8 @@ export function computeBadgeUnderPlate(
+     margin?: number;
+     /** 与障碍物的最小安全距离；默认 2，即所有候选之间至少留 2px。 */
+     minClearance?: number;
++    /** 仅 merged 兜底使用的障碍；GameRoot 传玩家/自家图标，邻居名牌允许靠近。 */
++    mergedBlockers?: MapRect[];
+   } = {},
+ ): MapBadgePlacement {
+   const w = Math.max(1, badgeW);
+@@ -314,6 +316,21 @@ export function computeBadgeUnderPlate(
+     return true;
+   };
+ 
++  const safeMerged = (candidate: MapBadgePlacement): boolean => {
++    const mergedBlockers = options.mergedBlockers ?? blockers;
++    if (options.bounds) {
++      if (!insideBounds(candidate.rect, options.bounds, margin)) return false;
++      if (candidate.plateRect
++        && !insideBounds(candidate.plateRect, options.bounds, margin)) return false;
++    }
++    for (const blocker of mergedBlockers) {
++      if (minClearance > 0
++        ? rectsWithinDistance(candidate.rect, blocker, minClearance)
++        : rectsOverlapStrict(candidate.rect, blocker)) return false;
++    }
++    return true;
++  };
++
+   // 1) 名字牌右侧，垂直居中。
+   const right = make(plate.right + gap, plateCenterY - h / 2, 'right');
+   if (safe(right)) return right;
+@@ -322,20 +339,11 @@ export function computeBadgeUnderPlate(
+   const left = make(plate.left - gap - w, plateCenterY - h / 2, 'left');
+   if (safe(left)) return left;
+ 
+-  // 3) 两侧都不可用 → 名字牌正下方，先水平居中，间距 2px。
+-  // 居中位置被邻居/玩家占住时，在名字牌宽度范围内左右滑动寻找空位；
+-  // 这仍然属于「正下方」这一级，不会跑到上方压住自己的图标。
++  // 3) 两侧都不可用 → 名字牌正下方，必须严格水平居中，间距 2px。
++  // 居中位置被邻居/玩家占住时不再横向滑动；直接进入 merged 兜底。
+   const belowTop = plate.bottom - gap - h;
+   const belowCenter = make(plateCenterX - w / 2, belowTop, 'below');
+   if (safe(belowCenter)) return belowCenter;
+-  const maxSlide = Math.max(0, (plateW - w) / 2);
+-  for (let d = 1; d <= Math.ceil(maxSlide) + 0.001; d++) {
+-    for (const centerX of [plateCenterX + d, plateCenterX - d]) {
+-      if (Math.abs(centerX - plateCenterX) > maxSlide + 0.001) continue;
+-      const candidate = make(centerX - w / 2, belowTop, 'below');
+-      if (safe(candidate)) return candidate;
+-    }
+-  }
+ 
+   // 4) 最终兜底：红牌并进名字牌左端。高度与名字牌一致，不缩小、不隐藏文字。
+   // 先按图标中心重新对齐整块（红段 + 名牌），再夹进地图可视区。
+@@ -345,32 +353,55 @@ export function computeBadgeUnderPlate(
+   const maxLeft = options.bounds
+     ? options.bounds.right - margin - mergedW
+     : Number.POSITIVE_INFINITY;
+-  const mergedLeft = maxLeft >= minLeft
+-    ? Math.max(minLeft, Math.min(maxLeft, centeredLeft))
+-    : centeredLeft;
+-  const mergedPlate: MapRect = {
+-    left: mergedLeft,
+-    right: mergedLeft + mergedW,
+-    top: plate.top,
+-    bottom: plate.bottom,
+-  };
+-  const mergedRect: MapRect = {
+-    left: mergedLeft,
+-    right: mergedLeft + w,
+-    top: plate.top,
+-    bottom: plate.bottom,
+-  };
+-  return {
+-    centerX: (mergedRect.left + mergedRect.right) / 2,
+-    centerY: (mergedRect.top + mergedRect.bottom) / 2,
+-    rect: mergedRect,
+-    side: 'merged',
+-    gap: 0,
+-    merged: true,
+-    plateRect: mergedPlate,
+-    plateShiftX: (mergedLeft + w + plateW / 2) - plateCenterX,
+-    connector: null,
++
++  const clampLeft = (value: number): number => (
++    maxLeft >= minLeft
++      ? Math.max(minLeft, Math.min(maxLeft, value))
++      : value
++  );
++
++  const makeMerged = (left: number): MapBadgePlacement => {
++    const mergedPlate: MapRect = {
++      left,
++      right: left + mergedW,
++      top: plate.top,
++      bottom: plate.bottom,
++    };
++    const mergedRect: MapRect = {
++      left,
++      right: left + w,
++      top: plate.top,
++      bottom: plate.bottom,
++    };
++    return {
++      centerX: (mergedRect.left + mergedRect.right) / 2,
++      centerY: (mergedRect.top + mergedRect.bottom) / 2,
++      rect: mergedRect,
++      side: 'merged',
++      gap: 0,
++      merged: true,
++      plateRect: mergedPlate,
++      plateShiftX: (left + w + plateW / 2) - plateCenterX,
++      connector: null,
++    };
+   };
++
++  const candidates: number[] = [clampLeft(centeredLeft)];
++  if (Number.isFinite(minLeft) && Number.isFinite(maxLeft)) {
++    const edges = [maxLeft, minLeft]
++      .sort((a, b) => Math.abs(a - centeredLeft) - Math.abs(b - centeredLeft));
++    for (const edge of edges) {
++      if (!candidates.some((value) => Math.abs(value - edge) < 0.001)) {
++        candidates.push(edge);
++      }
++    }
++  }
++
++  for (const left of candidates) {
++    const candidate = makeMerged(left);
++    if (safeMerged(candidate)) return candidate;
++  }
++  return makeMerged(clampLeft(centeredLeft));
+ }
+ 
+ /** 兼容更直白的名字：与 computeBadgeUnderPlate 相同（含碰撞回退）。 */
+diff --git a/test/r39.test.ts b/test/r39.test.ts
+index 5de0ea5..130c5df 100644
+--- a/test/r39.test.ts
++++ b/test/r39.test.ts
+@@ -146,6 +146,7 @@ function collectSides(): { sides: Record<string, number>; failures: string[] } {
+         const badge = computeBadgeUnderPlate(daily.placement.plate, 64, 36, {
+           gap: 2,
+           blockers,
++          mergedBlockers: [daily.placement.icon, heroRect(player, env.iconSize)],
+           bounds: env.bounds,
+           minClearance: MAP_BADGE_CLEARANCE,
+         });
+@@ -199,6 +200,9 @@ function collectSides(): { sides: Record<string, number>; failures: string[] } {
+           assert.ok(badge.rect.left >= daily.placement.plate.left - 0.001
+             && badge.rect.right <= daily.placement.plate.right + 0.001,
+           `${tag} 下方小牌没有保持在名字牌宽度范围内`);
++          const plateCenterX = (daily.placement.plate.left + daily.placement.plate.right) / 2;
++          assert.ok(Math.abs(badge.centerX - plateCenterX) < 0.001,
++            `${tag} 下方小牌没有水平居中`);
+         } else {
+           const plate = badge.plateRect!;
+           assert.equal(badge.merged, true, `${tag} merged 档没有标记`);
+@@ -255,7 +259,7 @@ test('r39 限定牌：4 尺寸 × 8 地点 × 4 玩家位置全覆盖，始终
+   }
+ });
+ 
+-test('r39 五个失败组合：390/福田CBD、SE/东门、360/东门、360/福田CBD、PM/福田CBD 不压任何障碍', () => {
++test('r39 五个失败组合：390/福田CBD、SE/东门、360/东门、360/福田CBD、PM/福田CBD 下方居中或 merged 兜底', () => {
+   const failed = [
+     { vp: '390x844', loc: 'futian_cbd' },
+     { vp: 'SE 375x667', loc: 'dongmen' },
+@@ -274,14 +278,18 @@ test('r39 五个失败组合：390/福田CBD、SE/东门、360/东门、360/福
+       const badge = computeBadgeUnderPlate(daily.placement.plate, 64, 36, {
+         gap: 2,
+         blockers,
++        mergedBlockers: [daily.placement.icon, heroRect(player, env.iconSize)],
+         bounds: env.bounds,
+         minClearance: MAP_BADGE_CLEARANCE,
+       });
+       const tag = `${item.vp} 限定@${item.loc} 玩家@baishizhou (${badge.side})`;
+-      assert.notEqual(badge.side, 'merged', `${tag} 五个历史失败组合不应退到合并档`);
+-      for (const blocker of blockers) {
+-        assert.equal(rectsWithinDistance(badge.rect, blocker, MAP_BADGE_CLEARANCE), false,
+-          `${tag} 小牌与障碍物距离不足 2px`);
++      assert.ok(badge.side === 'below' || badge.side === 'merged',
++        `${tag} 应回退到下方或合并档`);
++      if (badge.side !== 'merged') {
++        for (const blocker of blockers) {
++          assert.equal(rectsWithinDistance(badge.rect, blocker, MAP_BADGE_CLEARANCE), false,
++            `${tag} 小牌与障碍物距离不足 2px`);
++        }
+       }
+       assert.ok(inside(badge.rect, env.bounds), `${tag} 小牌超出可视区`);
+     }

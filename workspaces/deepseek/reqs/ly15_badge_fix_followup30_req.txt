@@ -1,0 +1,7 @@
+继续仅授权的限定牌布局最小修复，不恢复横向滑动，不放宽测试断言，不改玩法数值。协调者已在 followup28 工作树之上逐字应用你 followup29 的增量补丁，尚未提交。当前实际 diff 已保存：/workspace/ly15_badge_fix_followup29_applied.diff。请只读该 diff 与当前 /workspace/lingyuan15 源码，不要操作 Mac、不要自己改仓库。
+针对性检查结果：`npx tsx --test test/r39.test.ts` 现已 4/4 通过，失败用例 `390x844 限定@dongmen 玩家@baishizhou (merged) 小牌压玩家` 已不再复现。但 `npx tsc -p cocos/tsconfig.check.json --noEmit` 未通过，退出码 2，原文：
+cocos/assets/scripts/GameRoot.ts(983,39): error TS18047: \info.placement\ is possibly 
+ull\.
+cocos/assets/scripts/GameRoot.ts(983,73): error TS18047: \info.placement\ is possibly 
+ull\.
+对应现有第 983 行是你新增的：`mergedBlockers: heroRect ? [info.placement.icon, heroRect] : [info.placement.icon],`。请基于当前源码给出完整可应用补丁，只做通过该既有类型检查所必需的最小修正，不要删除/放宽遮挡、字完整、可视区或居中断言，不要编新布局设计。若与既有契约冲突需给明确证据。并再次给出针对性检查命令与期望（仍用 test/r39.test.ts 与 cocos/tsconfig.check.json）。本轮不要自己改仓库文件；未实施、不 commit、不 build、不 push。

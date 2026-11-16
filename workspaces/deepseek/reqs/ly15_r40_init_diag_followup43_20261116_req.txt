@@ -1,0 +1,40 @@
+续 followup42，此为 followup43。协调者只转述与原样提取，全部诊断/代码推理由你完成，不自行改你的逻辑、不运行模拟游戏、不操作 Mac、不新建 case、不截图、不编译、不改 build/源码/config/AppID、不装包、不新开网络服务、不扫 Library、不访问 App 内部文件。此轮只在 box 生成并检查准备稿，不要让协调者在 Mac 应用。
+
+请先只读磁盘 final 原文，不要依赖任何聊天粘贴：
+/workspace/ly15_r40_lookup_followup42_20261116_final.txt
+（15902 字节，436 行）。上轮对外转述曾出现 dx 的 /10 与 /2 矛盾；以该磁盘文件为准核实际代码块。纯诊断可不含 bounds/dx；若保留任何 dx，必须对两个中心均 /2。不要把聊天粘贴当原文。
+
+请校核 followup42 结论界限，不能把未实证结论当事实：
+- 构建有注册 GameRoot 且 constructor 名为 o，不足以凭静态证据 100% 证明运行时字符串查找返回的就是真实实例。
+- start 未达到 game 创建，也不能只断言必定卡在 await；也可能生命周期未调用或有异常。
+- 必须把候选 instanceof / getClass / component.node / 场景节点可达 / 启动生命周期，与 game 内容分开做有界诊断。
+- 若 v3 只是再等同样 30 秒且数据仍不能区分具体 await，不要宣称可确认卡在哪一个 await。
+- 可核 Art/PixelFont 等公开状态属性及其他已知可用只读证据；不调用未证私有 API，不包装游戏函数，不跳过 preload，不造 Game。
+- 不要再沿用已过时的缺 START/信任/模式结论。
+
+请给出真正最小、相关、独立的诊断 driver：
+- 优先复用现有已信任的 futian v2 case，不创建新 case/窗口以免重复信任。
+- 旧 game.js 与 driver 须先正规保存到本次全新备份目录并核 hash；只有你明确验证完整性后，才给出更新测试注入入口的方案。注入入口应从密封新 build 的原 game.js 重组，不把新诊断叠在已注入的 v2 game.js 上。保留所有旧文件，不改 build/源码/config/AppID。
+- driver 只做只读候选诊断，不布置游戏状态，不输出伪 READY。若后续布局要续用现有 v2 逻辑，必须具体证明，不要抢跑。
+
+请给出准确的 prepare/apply 工具草案，以及运行/编译方式；不要编造 CLI。现有 `cli --help` 无 compile/run 证据（见 /workspace/ly15_r40_startup_followup41_cli_help.txt）。若非用户 GUI 无法触发，请清楚说明依据，不要编按钮路径。
+
+可只读这些已有精确文件：
+- /workspace/ly15_probe_tools_r40_d3d65b6_20261116_v2/probe_driver.js
+- /workspace/ly15_probe_tools_r40_d3d65b6_20261116_v2/probe_prepare.py
+- /workspace/ly15_probe_tools_r40_d3d65b6_20261116_v2/RUNBOOK.md
+- /workspace/ly15_r40_futian_v2_case/game.js
+- /workspace/ly15_r40_futian_v2_case/__ly15_probe_driver.js
+- /workspace/ly15_r40_futian_v2_case/case.json
+- /workspace/ly15_r40_futian_v2_case/case_manifest.json
+- /workspace/ly15_r40_futian_v2_case/game.json
+- /workspace/lingyuan15/cocos/assets/scripts/GameRoot.ts
+- /workspace/lingyuan15/cocos/assets/scripts/ui/Art.ts
+- /workspace/lingyuan15/cocos/assets/scripts/ui/PixelFont.ts
+- /workspace/ly15_r40_build_assets_main_index_d3d65b6_20261116.js
+  （来源密封新 build assets/main/index.js，sha256 340caa81853753299c2311bce80b41368b3101732a5fee3d6baa54479a9cd6e7）
+- 密封 build 原 game.js hash 先前 manifest 为 2522B / 32a997ceb72b71efbc26553d820d1a2de26115a5b00ac48917351ca5ab68c5a3；若要重组注入，请明确应从哪份未注入原件取用。现有已注入 case game.js 为 13673B / 02c02ea264f1e63f8ec8da75f29d3c795c3ce10ae610028fb77d316ad0f532a7，不要叠加上去。
+
+交付完整文件代码块（无省略号/伪代码），并明确建议的文件名。协调者将在你完成后，把你 final 中的实际代码块原样提取到此前不存在的目录：
+/workspace/ly15_r40_init_diag_tools_20261116_2145/
+并只做你要求的 box 语法/只读检查，不 Mac 应用。请同时列出未解决缺口、备份目录建议路径、以及完整性核验步骤。尽快给简明可行动结果。

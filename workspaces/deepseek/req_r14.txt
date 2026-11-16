@@ -1,0 +1,9 @@
+Balance changes from the planner's simulation (only edit src/core/config.ts numbers, then mirror to cocos/assets/scripts/core so both are byte-identical):
+- 华强北清仓 daily special sellMul 2 -> 1.7
+- 回收商 cardboard sellMul 3 -> 2.4
+- 地铁停运 homeCostMul 1.5 -> 1.55
+- Days 5-9: dailyHunger 38 -> 40, lootMul 0.7 -> 0.66, patrolBonus 0.1 -> 0.11
+- Days 10-15: dailyHunger 66 -> 70, lootMul 0.5 -> 0.46, patrolBonus 0.1 -> 0.13, badFortuneBonus 0.15 -> 0.16
+Do NOT change: 夜市 ¥10, 拆迁 +2 big boxes and patrol x2, farTravelMul.
+Also: check game code (core and cocos UI) for any hard-coded food price ¥20 used for buy-food affordability checks or display text; replace with reading game.foodPrice (or the existing current-day food price getter) so the 夜市 half price applies everywhere. Add/adjust a test for this.
+Update any tests that assert the old numbers. Run `npx tsx --test test/game.test.ts` and `npx tsc -p cocos/tsconfig.check.json` (0 errors), commit, and report the commit hash.

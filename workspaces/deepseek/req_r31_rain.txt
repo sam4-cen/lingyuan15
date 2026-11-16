@@ -1,0 +1,6 @@
+r31 小改（基于 r30 提交，只改 UI，不动 src/core）。完成后：npm test 全过、tsc 0 错误、core 同步，Version.ts 标 r31，git commit "feat: r31 下雨事件精灵"。主包 < 3950KB。
+下雨事件替换 hero_idle 占位：
+- /workspace/lingyuan_art/sprites/hero_rain.png（40×40，脚底锚点 (20,38)）复制进项目相应精灵目录，作为下雨事件 NPC；与原 hero_idle（脚底锚点 (18,30)）按脚底对齐，即节点锚点设为 (20/40, 1-38/40)。
+- 雨滴叠加层 sprites/rain_drops_0.png / rain_drops_1.png（40×40，与 hero_rain 同画布同坐标），作为子节点叠在 hero_rain 上，每 0.25s 切换一帧循环；事件关闭时停止计时器。
+- 整数倍放大规则同其他 NPC（物理像素 floor 取整，Point 过滤，坐标对齐整数物理像素），排布仍按事件页统一百分比布局。效果参考 /workspace/r10_rain_preview.png。
+加单测：下雨事件 NPC 使用 hero_rain、存在雨滴子节点、scale 为整数、帧切换间隔 0.25s。

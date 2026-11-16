@@ -1,0 +1,52 @@
+续 followup38。协调者只转述本轮 Mac 正规执行结果并提交新截图，请你用官方 read_image 逐图分析，不要把转述当视觉结论，不要让协调者自行判图。不写仓库、不操作 Mac、不改源码/配置/安全设置、不创建 private、不签真实触摸/全流程。
+
+本轮已在已授权范围内执行（Asia/Shanghai / CST）：
+
+1) RUNBOOK 的 `r40_prebuild_safe.py seal --approved ...` 此前 exit 2：unrecognized arguments: seal。脚本未改。按其自身 --help 实际 CLI（去掉 seal 子命令）执行：
+/usr/bin/python3 /Users/[REDACTED]/Documents/ly15_probe_tools_r40_d3d65b6_20261116_v2/r40_prebuild_safe.py --approved --source-root /Users/[REDACTED]/Documents/ly15_r40_src_d3d65b6_20261116 --build-dir /Users/[REDACTED]/Documents/ly15_r40_buildroot_d3d65b6_20261116/wechatgame
+终态：exit 0
+INFO_WRITTEN: .../wechatgame/ly15_info.json
+MANIFEST_WRITTEN: .../wechatgame/r40_build_manifest.json
+SEALED_OK: .../wechatgame
+PROJECT_PRIVATE_PRESENT: False
+BUILD_TAG_SOURCE: assets/main/index.js
+ASSET_TREE_SHA256: 84c44333fb28def741ac208513365e869dd4ea64c90bb25e7a3e777a2e243f4e
+事后：INFO_PRESENT, MANIFEST_PRESENT, PRIVATE_ABSENT（未创建 private）。
+已 CopyToBox：/workspace/ly15_r40_wechatgame_ly15_info.json（320B）、/workspace/ly15_r40_wechatgame_r40_build_manifest.json（1.2KB）。请只读核验这两份全文。info 转述：version r40, tag "r40 d3d65b6", commit d3d65b662c29b5a9d2103a011a5c2bb87f3a2edb, mainPackageBytes 2980634, builtAt 2026-11-16T08:26:43.511563+00:00。manifest schema ly15-r40-build-manifest-v2，源码两 hash 与 r40 新提交一致，project.private.config.json present:false。
+
+2) prepare（cases 根事先仍不存在）：
+/usr/bin/python3 .../probe_prepare.py --approved --build-dir .../wechatgame --source-root .../ly15_r40_src_d3d65b6_20261116 --out-root /Users/[REDACTED]/Documents/ly15_probe_cases_r40_d3d65b6_20261116_v2
+终态：exit 0
+PREPARED: /Users/[REDACTED]/Documents/ly15_probe_cases_r40_d3d65b6_20261116_v2
+CASES: futian_cbd, dongmen
+PROJECT_PRIVATE_PRESENT: False
+未开东门。futian_cbd/project.config.json 原文 projectname 仍为 "lingyuan15"，appid wx6ac3f5090a6b99c5，compileType game。目录含 __ly15_probe_driver.js、case.json、case_manifest.json、game.js、ly15_info.json、r40_build_manifest.json；未见 project.private.config.json。
+
+3) open 仅 futian_cbd：
+/Applications/wechatwebdevtools.app/Contents/MacOS/cli open --project /Users/[REDACTED]/Documents/ly15_probe_cases_r40_d3d65b6_20261116_v2/futian_cbd
+终态：exit 0；"✔ IDE server has started, listening on http://127.0.0.1:11347"；"✔ open"。未点击 UI，未替用户点“信任并运行”，未做全局作者信任。
+
+4) 窗口枚举（本轮新枚举，不复用旧 2627/2772/2788/2909 截图）：
+- 简单 JXA deepUnwrap 筛选曾返回 []，不能当无窗。
+- /usr/bin/launchctl 不存在；/bin/launchctl managername = Aqua，exit 0。SSH_CONNECTION=none。
+- 已证 jxa_diag（castRefToObject）windowCount=148。锁屏字典用同样桥接后 hasDict=true，keys 有 kCGSSessionOnConsoleKey=true、kCGSessionLoginDoneKey=true，但仍然没有 CGSSessionScreenIsLocked 键；lock 字段缺失，不能形式认定已解锁。CGPreflightScreenCaptureAccess unavailable。
+- 微信开发者工具 ownerPID 均为 2840。本轮标题窗：
+  3031  title="lingyuan15 - 微信开发者工具 Stable v2.01.2510260" onscreen=true layer=0 bounds={X:95,Y:0,Width:1250,Height:900}
+  3029  同标题、同 bounds、onscreen=true layer=0
+  2909  title="wechatgame - 微信开发者工具 Stable 2.01.2510260" onscreen=true layer=0 bounds={X:94,Y:0,Width:1250,Height:900}（旧 ID，本轮未截此窗）
+  2520  title="WeChat Web Devtools" layer=0 bounds={X:365,Y:100,Width:711,Height:700}（onscreen 字段未解出，未截）
+  2529  title="" layer=0 bounds={X:0,Y:400,Width:500,Height:500}（onscreen 未解出；尺寸像对话框，仅取证）
+- 无窗口标题含 futian_cbd。因 case 的 projectname 仍是 lingyuan15，不能凭标题/窗口 ID 判定是原工程还是 v2 副本。
+
+5) 截图（新目录新文件，screencapture -x -l，exit 0；/usr/bin/test 在此 Mac 不存在，预检误报 EXISTS，但 mtime 显示为本轮新建，未覆盖更旧证据）：
+Mac：/Users/[REDACTED]/Documents/ly15_r40_probe_shots_v2_20261116/
+- window_3031_1629.png | 732506 bytes | 2026-11-16T16:30:38+0800
+- window_3029_1629.png | 584702 bytes | 2026-11-16T16:30:39+0800
+- window_2529_1629.png | 20358 bytes | 2026-11-16T16:30:39+0800
+已 CopyToBox：
+- /workspace/ly15-shots/window_3031_1629.png sha256 aa8c94c11e1498f118d59c3e05a02711b4091f197d706c8813b7fc508343069c
+- /workspace/ly15-shots/window_3029_1629.png sha256 1fcb1cbbce2e4167a13e904278fd7b77091ef86bdb77b8ed089430c3219538e4
+- /workspace/ly15-shots/window_2529_1629.png sha256 b07d8fb7cf61b150489a031d2f918f3f1eb210d32370348f1db6a63058170172
+未扫描 Library，未取 USER_DATA_PATH 探针日志。原工程/旧 build/旧 Documents/ly15_info 未改。未开 dongmen。
+
+请立即逐图 read_image 上述 3 张新图，不能漏图或用 15:21 旧图替代。目录关系仅历史关联；必须从图内目录标签/模式文字/画面/Console/报错/信任框核实：是否作者“信任并运行”对话框、是否 v2 futian_cbd 路径可证、当前模式（小游戏/小程序）、加载状态、是否出现完整前缀 LY15_PROBE: READY {...} 或 FAIL/LOG_PATH/具体错误原文（看不清则未知）。没有完整 READY 前缀则不能把截图当成功布局证据，也不能签限定牌 below/merged 通过。若是信任框，只报告，下一步交小游戏当前用户会话处理，不要建议协调者代点或做全局信任。给出一条最小可执行下一步（仍限福田/东门复测授权）。尽快给简明可行动结果。

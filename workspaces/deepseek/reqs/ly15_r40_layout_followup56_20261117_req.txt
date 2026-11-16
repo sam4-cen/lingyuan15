@@ -1,0 +1,34 @@
+续 followup55，此为 followup56。福田 merged 注入专项通过结论保留，不要重跑、不要改写。不要再调查启动链，不要建议 open/编译/刷新，不要再截同一窗口状态。用户没有可提供的新事实；请在已授权的「只改限定牌位置并做相关复测」范围内，把 followup55 指出的代码/视觉一致性问题调查清楚，不要停在「有矛盾不能签」而不分析。
+
+已确定事实（不要回退）：
+- v3 已真实执行：完整 START/READY，probeVersion=r40-layout-ready-v3，case=dongmen，player=baishizhou，buildTag=r40 d3d65b6，markerName=map_marker_dongmen，dailySpecialLocationId=dongmen，placementSide=merged，badgeBounds=[16,1928,127,68]，plateBounds=[16,1928,348,68]，dx=-110.5（两中心 /2 核验成立），ownIconOverlap=false，heroOverlap=false，mergedHeightMatches=true，belowCentered=false，logOk=true。
+- 上轮你根据整窗缩小图判断：红「限定」在大学城名牌左侧，东门名牌旁没有该牌，且 x=16 像画面左侧，因而认为测量对象与视觉位置不一致，未签通过。
+- 不要预先断言该视觉判断一定正确，也不要仅采信 READY 字段/源码常量。必须实证 badge 是否位于对应 dongmen marker 的实际标签。
+
+本轮请你先对已存原图做高分辨率局部复核，再沿真实执行路径做代码分析。协调者未自行识图定论，只把原图切成全分辨率分片供你 read_image（避免再次把 2636x1936 整窗缩小后 OCR/读字）。
+
+原图：/workspace/ly15-shots/window_3461_0003.png 2636x1936 PNG sha256 812cb8363e2c658ec58bd05698b4bf02e60ff79594cfa3b6c20d9ebbf6055fdd
+上轮 read_image 曾降到约 2389x1755，坐标需乘 1.10 才回到原图像素。分片均为原图像素裁切、未缩放：
+- r0c0 /workspace/ly15-shots/window_3461_0003_tiles/window_3461_0003_tile_r0c0_0-0-878-968.png box=[0,0,878,968] sha256 d01b6ca4c290fa176463715371316c4d4581bd5a6a319a06a9fa390458c044cb
+- r0c1 .../window_3461_0003_tile_r0c1_878-0-1756-968.png box=[878,0,1756,968] sha256 b983e52025b6c1f1273ed19d4a4609276c3e85953f177caaf65a111ab7742506
+- r0c2 .../window_3461_0003_tile_r0c2_1756-0-2636-968.png box=[1756,0,2636,968] sha256 5478c36fa4e9a76027155c08ffb06996d1b6900ab4aad164c2c28c40f5da49ed
+- r1c0 .../window_3461_0003_tile_r1c0_0-968-878-1936.png box=[0,968,878,1936] sha256 a3e89f420fe3fdfbee39ee024793b4483a177a27f0e3f247b38b1b8c6d1770fb
+- r1c1 .../window_3461_0003_tile_r1c1_878-968-1756-1936.png box=[878,968,1756,1936] sha256 814dbe047ada78139597406bb562fd090fde46fd8178311fb2b944d807257786
+- r1c2 .../window_3461_0003_tile_r1c2_1756-968-2636-1936.png box=[1756,968,2636,1936] sha256 1af2570d1a719b4a48b0d5d853860dbb0274a32c6213f6b526f978bc1e494291
+请至少对可能含地图名牌/红牌的分片做官方 read_image（尤其原图像素中与模拟器地图、名牌文字「东门」「大学城」、红色「限定」相关的区域）。若还需更小的全分辨率裁切才能看清某块文字，请在结论里给出原图像素精确裁切盒，协调者可以再切一次交给你；本轮先尽量用现有分片完成复核。不要要求新截 Mac 窗口。
+
+然后只读核真实执行路径（不要改仓库除非你给出完整可应用的最小测试工具或游戏补丁文件）：
+- /workspace/ly15_r40_layout_probe_tools_20261117_0000/layout_probe_driver_v3.js（sha256 066a0ff014938f7ffe0174d04a2ea5b52241c0be99785ed783b0be2117d4a0b1）：nodeBounds / 坐标空间 / findByName / collect 如何取 caseMarker 名称与 badge 屏幕坐标；markerName、dailySpecialLocationId 是运行时节点名/组件值，还是由 CASE 常量拼接。
+- /workspace/lingyuan15/cocos/assets/scripts/core/config.ts：地点 id、name/label、地图 position。
+- /workspace/lingyuan15/cocos/assets/scripts/GameRoot.ts、ui/MapLayout.ts、ui/LocationView.ts：refresh/showMap 是否复用节点、map_marker_* 如何命名与挂 badge、世界坐标/UI/相机到屏幕的转换。
+当前东门注入 game.js sha256 adbbdb8a6a876092a0e590bde11388ca8ed5c180a2f1b4848741629e8e9a950b。followup55 final：/workspace/ly15_r40_layout_followup55_20261117_final.txt。
+
+请明确给出已证/未证分界：
+1) 高分辨率分片上，红「限定」实际贴在哪一块名牌旁边？该名牌可见文字究竟是「东门」还是「大学城」还是其他？该结论是否纠正或维持 followup55 的整窗缩小判断。
+2) 沿真实路径解释 badgeBounds x=16 的坐标空间：是否可能就是东门 marker 的正确屏幕位置（例如相机/滚动/转换后东门在视口左侧）；或证明测错（找错节点/复用节点/名称拼接与真实 parent 不符）；或证明显示错（badge 挂在错误地点节点）。
+3) markerName=map_marker_dongmen 与 dailySpecialLocationId=dongmen 分别来自运行时读取还是常量拼接。
+4) 若有确定的测试工具缺陷：给出完整可应用最小修正（仅测试工具，仅现有东门，从密封原 game.js 重组，核当前 game.js adbbdb8a… 与密封 32a997ce…，全新备份目录，不叠加）。若必要改动会自动刷新，只一次有界取证；否则若局部图复核已足够下结论，不要 Mac 变更或新图。
+5) 若有确定的游戏限定牌相关 bug：给出最小 patch 与专项测试，说明应按既有 Git/测试流程如何处理；涉及游戏构建时必须用独立源副本与既有 Mac 构建流程，不得擅改密封 build、原 /Users/[REDACTED]/Documents/lingyuan15、配置或 AppID，不轻易改玩法/基础库。不要在未给出完整补丁前改游戏源码。
+6) 若问题已超出当前授权、需要父方一次决策：写出具体决策缺口，不要笼统停工。
+
+验收标准不降低：必须实证 badge 位于对应 dongmen marker 的实际标签，才能签东门通过。注入专项不是真实触摸/全流程。禁止建议开端口、改安全设置、扫 Library。尽快给可行动结论。

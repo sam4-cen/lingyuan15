@@ -1,0 +1,25 @@
+followup31 因客户端 flush on a closed handle 中断，未产出 final。请在本轮一次交付：已核实最小构建步骤、r40 probe 工具草案、以及无 git 环境下的文件交接方案。不要改仓库源码、不要操作 Mac、不要执行构建、不要自己写入仓库或覆盖已有工具/旧构建。当前 box 仓库 /workspace/lingyuan15 HEAD=d3d65b662c29b5a9d2103a011a5c2bb87f3a2edb（r40: 限定牌正下方必须水平居中，否则 merged 并避开玩家），工作树干净。父提交=5ec8fde942bebe95c6b365d7e2b5abf1611991aa。授权范围仍是限定牌布局修复及福田CBD/东门相关复测。
+
+新增 Mac 证据（测试转述，不要据此去扫 Mac 或假设存在仓库）：小游戏以 /Users/[REDACTED]/Documents/lingyuan15 为 cwd，git status && git rev-parse 返回 128，not a git repository。bundle 已传到 Documents，但未 fetch/merge/init。不要假设该源码副本有 .git，不要寻找别的未知 repo，不要扫描 Mac，不要 clone/init，不要在无 git 目录里对 bundle 做 merge。之后若需应用补丁：只在全新独立源码目录复制并应用补丁，并明确新提交溯源；不碰原件 /Users/[REDACTED]/Documents/lingyuan15，不改其内容。
+
+协调者已在 box 用 git show 精确父/新内容计算 SHA-256（对 git show 原始字节做 sha256，未额外加换行），并写入：
+- /workspace/ly15_r40_parent_file_hashes_20261116.json
+- /workspace/ly15_r40_parent_5ec8fde.sha256
+- /workspace/ly15_r40_new_d3d65b6.sha256
+请只读核对这些值，不要改算。已核实：
+1. cocos/assets/scripts/ui/MapLayout.ts
+   parent 5ec8fde sha256=a524788a16d9d6a1776989a0d34a6cfc24413e1dc70901ae6302c2b93b955198 bytes=17067
+   new    d3d65b6 sha256=b7db7976c14324a7eb57835ee4daba74a36ad267e2e8ce29492b7d7e567fd134 bytes=18007
+2. cocos/assets/scripts/GameRoot.ts
+   parent 5ec8fde sha256=1ffdf30c71e41a189ce5a19030045067519fef54a79c548c2229e2aa4b964471 bytes=80139
+   new    d3d65b6 sha256=7fd8f57703f990b7e3327536dc084ff12daf20ec17eaac1030d7261a987b2ecf bytes=80223
+3. test/r39.test.ts
+   parent 5ec8fde sha256=59be9b2ec3569c7f64e30a97e2f4f107914d0b3118b783822db2d0f77854ea8b bytes=16885
+   new    d3d65b6 sha256=ad75d94e8dd63c90fe5d9a14519f09c58ff99272505cd1c8c1e85104687ef99f bytes=17344
+工作树三文件与新提交字节一致。请给出正规只读 Mac 核 hash 的具体命令（可用 /usr/bin/shasum -a 256 与 /bin/test），用于核验 Mac 现有 Documents/lingyuan15 中这三文件是否等于父 5ec8fde；不要要求 git。同时给出 package.json 与实际 prebuild/postbuild 相关的最小基线文件清单（路径精确），以及父/新内容 hash manifest 与不依赖 git 工具的单纯文件交接包方案（三份变更文件的父内容与新内容、清单、补丁）。可在草案中指定 box 与 Mac 的全新目录名；不要覆盖旧工具/旧 case/旧构建/原 Documents 工程。
+
+一、已核实的最小可执行构建步骤。只读 package.json 和实际 prebuild/postbuild 脚本：是否会删文件、会覆盖哪些生成源码/产物；Version tag 如何生成；ly15_info.json 的生成方式与输入输出路径。用户明确不删除文件、保留旧 build，输出必须是全新唯一目录。不要笼统让跑 npm prebuild，若它会删文件或覆盖旧 build。若现有脚本不合规，给出仅本次所需的最小合规替代，并写成独立工具草案，不改玩法或仓库源码。Cocos Creator 3.8.8 在 Mac 上的实际可执行路径不能凭空证实：基于现有已获准记录查确证路径、官方 CLI 参数、buildPath/平台值；无确证就明确写未知，只给小游戏一条精确正规只读核验步骤，不编造已安装路径或官方参数。避免被拒 App 内部 Automator 路径，不扫描 Library、不删、不装包、不新开网络服务。可读取已知工程构建配置与历史成功脚本，并区分：历史已用 / 官方依据 / 待 Mac 核验。若需公开文档，仅限官方只读、有限次数，避免泛研。
+
+二、准备全新 r40 probe 工具。建议 box 目录 /workspace/ly15_probe_tools_r40_d3d65b6_20261116，未来 Mac 工具目录建议 /Users/[REDACTED]/Documents/ly15_probe_tools_r40_d3d65b6_20261116，全新候选根建议 /Users/[REDACTED]/Documents/ly15_probe_cases_r40_d3d65b6_20261116，子目录 futian_cbd/dongmen，player 白石洲。基于既有 /workspace/ly15_probe_tools_20261116_1525 适配新构建入口与标识：必须验证新构建 ly15_info.commit=d3d65b662c29b5a9d2103a011a5c2bb87f3a2edb 以及资源/入口 hash，不再硬套 r39 原 game.js 2522B/32a9；不能只改 gate 去接受旧 assets。不覆盖旧 case、旧工具、旧构建，不盲猜尚未产出的 game.js hash。允许 prepare 从明确指定的新构建目录读取并记录 hash，且必须先验证 commit/tag，再复制验证。若需要实际新构建数据才能定稿，输出准备稿和准确所需文件清单，勿编造 hash 或构建产物。
+
+交付完整文件代码块（无省略号/伪代码），建议文件名：R40_BUILD_RUNBOOK.md、r40_prebuild_safe.py（若需要合规替代）、PARENT_NEW_HASHES.md 或等价 manifest、三文件交接说明、probe_prepare.py、probe_driver.js、RUNBOOK.md。明确哪些步骤只读核验、哪些在全新独立目录复制/打补丁、哪些必须由小游戏在 Mac 授权会话执行。指出未实测、未执行；不签真实触摸/全流程。协调者只提取草案，不会在本轮执行、CopyFromBox、改 git 或碰 Mac 原件。

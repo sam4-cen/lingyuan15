@@ -1,0 +1,40 @@
+续 followup56，此为 followup57。福田 merged 注入专项通过结论保留，不要重跑、不要改写。东门尚未通过，不要冒签。注入专项不是真实触摸/全流程。不要降低验收：必须实证可见 badge 位于对应 dongmen marker 的实际标签，才能签东门通过。
+
+父方已明确：你在 followup56 提出的「只读运行时节点树取证」（列出全部 daily_badge 的 parent/active/label 等）属于原授权「只改限定牌位置并做相关复测」范围内的最小相关测试工具完善，不是需要用户再批准范围或购买能力的决策。请立即设计并给出完整可应用方案，不要把只读诊断本身写成超范围而停工。协调者会在本任务内备份、按你的完整文件从密封 loader 重组并只应用到现有东门 case，取得新证据后再交你连续定位；你本轮先把方案与完整文件一次给齐。
+
+已确定事实：
+- 0003 原图及全分辨率分片已由你在 followup56 实读：红「限定」紧贴「大学城」左侧，东门名牌旁无红牌。不是整窗缩小误读。
+- 同时完整 v3 START/READY：probeVersion=r40-layout-ready-v3，case=dongmen，player=baishizhou，buildTag=r40 d3d65b6，markerName=map_marker_dongmen，dailySpecialLocationId=dongmen，placementSide=merged，badgeBounds=[16,1928,127,68]，plateBounds=[16,1928,348,68]。
+- 原图：/workspace/ly15-shots/window_3461_0003.png sha256 812cb8363e2c658ec58bd05698b4bf02e60ff79594cfa3b6c20d9ebbf6055fdd
+- followup56 final：/workspace/ly15_r40_layout_followup56_20261117_final.txt sha256 0c1d9b4aaa09e3d7eacd1f0b465e14a4162a32b03cd24298ef9b59e8974f126e
+- 当前东门注入 game.js sha256 adbbdb8a6a876092a0e590bde11388ca8ed5c180a2f1b4848741629e8e9a950b
+- 当前 v3 driver：/workspace/ly15_r40_layout_probe_tools_20261117_0000/layout_probe_driver_v3.js sha256 066a0ff014938f7ffe0174d04a2ea5b52241c0be99785ed783b0be2117d4a0b1（16016B）
+- 现有 apply：/workspace/ly15_r40_layout_probe_tools_20261117_0000/apply_layout_probe_v3.py
+- 密封原 game.js sha256 32a997ceb72b71efbc26553d820d1a2de26115a5b00ac48917351ca5ab68c5a3（2522B）
+- 游戏源码（请本轮实际再读，不要只依赖同 session 缓存推论）：
+  /workspace/lingyuan15/cocos/assets/scripts/core/config.ts
+  /workspace/lingyuan15/cocos/assets/scripts/core/game.ts
+  /workspace/lingyuan15/cocos/assets/scripts/GameRoot.ts
+  /workspace/lingyuan15/cocos/assets/scripts/ui/MapLayout.ts
+  /workspace/lingyuan15/cocos/assets/scripts/ui/LocationView.ts
+  以及上述 v3 driver 全文。
+
+目标（必须用真实运行时数据区分，不能靠常量冒充对象）：
+查明为何 READY 声称 map_marker_dongmen 下有被测 badge，而视觉红牌在大学城。需要全部 daily_badge 的运行时 parent 链、目标/标签身份、可见性（active / activeInHierarchy / 是否在屏内）、局部/世界/UI屏幕位置、当前 scene 中同名节点、可能的图形/节点残留，以及必要的帧时序证据（例如 collect 时刻与 showMap/refresh 完成的先后、是否存在旧 screenRoot 或重复 badge）。用这些数据区分：不可见/屏外另一枚 badge、旧帧/节点残留或复用、测量错误、或配置/命名不匹配。
+
+本轮请你：
+1) 本轮实际再读上面列出的源码与 v3 driver 全文（不要只引用记忆），必要时指出构建/注入对应片段。
+2) 一次设计可在现有微信开发者工具 Console GUI 读取的简洁完整身份与节点摘要（短前缀 + 多行字段，避免再被首行截断）。字段必须来自运行时读取，禁止用 CASE 常量去填 parent/label/坐标冒充已测到的对象。至少包括：
+   - 场景内全部名为 daily_badge 的节点（不要只报 caseMarker 下那一个）：parent 全链（节点名）、所在 map_marker_* 名、plate/label 可见文字、active、activeInHierarchy、本地/世界/worldToScreen 屏幕矩形、是否与当前 CASE marker 为同一节点；
+   - 当前被测 caseMarker 的运行时 name、path、active、世界/屏幕位置；
+   - G.dailySpecial.locationId 运行时值、G.location；
+   - 同名 map_marker_dongmen / map_marker_university_town / daily_badge 若有多份，全部列出；
+   - 必要帧时序或 refresh/showMap 次数/调用后节点是否新建；
+   - 保持原有可核验 READY 身份（probeVersion/case/player/buildTag/markerName/dailySpecialLocationId/bounds/dx 等），不要丢掉 v3 已有字段。
+3) 给出完整可应用文件，不要只给片段：
+   - 完整新 driver 源（建议独立 v4 文件，例如 layout_probe_driver_v4.js），在 v3 只读收集之上增加上述诊断，不调用私有 API，不包装生命周期或游戏函数（refresh/showMap/acceptFortune 等），不改玩法。日志以 console.log 多行短前缀为主，以便现有 GUI 读取；若另写本地文件，必须给出不依赖私有端口、不猜 USER_DATA_PATH、不请求 http://usr 的可读路径，否则不要作为唯一证据通道。
+   - 完整 apply 脚本：仅 --case-id dongmen；核当前东门 game.js 必须为 adbbdb8a6a876092a0e590bde11388ca8ed5c180a2f1b4848741629e8e9a950b，密封原 32a997ceb72b71efbc26553d820d1a2de26115a5b00ac48917351ca5ab68c5a3，现有 v3 driver 066a0ff014938f7ffe0174d04a2ea5b52241c0be99785ed783b0be2117d4a0b1；从密封原 game.js + 换行 + prelude（approved, case=dongmen, player=baishizhou, buildTag=r40 d3d65b6）+ 新 driver 重组，不叠加旧注入；写入新文件 __ly15_layout_probe_driver_v4.js，不覆盖已有 v2/v3 driver 文件；全新备份目录；不动福田、不改 project.config、不改密封 build 原件。
+   - 简要 runbook：备份、hash 门、一次应用、期望的 Console 前缀/字段、如何判断「已实际跑到新诊断」（必须看到新前缀/字段，不能只因地图仍是第7天或窗口被复用就声称已运行）。
+4) 本轮不要建议用户编译、复制日志或调整窗口。不要建议开端口、改安全设置、扫 Library。不要给未证的游戏 patch。若设计本身已足够，把完整文件一次写清（可用 markdown 代码块，完整源不要截断）。
+
+协调者随后只应用你给出的完整文件，做一次有界取证（自动刷新或已核公开 cli open 现有东门一次，并如实记录是否可能只复用窗口），取得新 Console/一张新图后再交你阅读定位。未拿到新诊断输出前不要预先断根因。

@@ -37,8 +37,8 @@
 - 排行榜和开放数据域还没做；分享只调用接口，不给任何奖励。
 
 ## 美术接入情况
-- 主包：`cocos/assets/resources/art`（约 526KB），包括主角、盒子、光效、开盖、NPC、签筒和签面、按钮、数值条、面板、卡片、图标。
-- 分包：`cocos/assets/bundles/bg`（约 1.19MB），是背景和地图，设成微信分包。
+- 主包：`cocos/assets/resources/art`（r27 约 455KB），包括首屏主角、盒子、开盖、按钮、数值条、面板、卡片和图标；光效、事件 NPC 等已移到 bg 分包。
+- 分包：`cocos/assets/bundles/bg`（r27 约 1.52MB），是背景、地图、光效和事件 NPC，设成微信分包。
 - 背包的单个格子用代码画框（Art.drawCell）。卡片按高度适配，两边留空（Art.makeCard）。
 - 像素图用 nearest 过滤，九宫格 inset 按 README 设置。
 

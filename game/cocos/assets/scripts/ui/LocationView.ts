@@ -13,30 +13,43 @@ import {
   EventTouch,
   view,
   Sprite,
-  LabelOutline,
   isValid,
 } from 'cc';
 import { Game, Box, ItemInst, Placed, PendingEvent, DigResult } from '../core/game';
 import { CONFIG, ITEMS, LOCATIONS, ItemDef, Rarity } from '../core/config';
-import { bagCellCenter, positionForAnchor } from '../core/placement';
+import { bagCellCenter, positionForAnchor, floorLootStyle, floorSlotX } from '../core/placement';
 import { Art } from './Art';
 import { Fx } from './Fx';
 import { uiNode, UILayout, alignBottom } from './UI';
 import { Sfx } from './Sfx';
+import { layoutWrappedSpeechBubble, measureTextWidth, placeSpeechBubble } from './BubbleLayout';
+import { fitCardText } from './CardTextLayout';
+import { PixelFont, PIXEL_INK_COLOR } from './PixelFont';
+import { lineHeightForFontSize, pxFont, pxSpacing, titleFontSizeForText } from './PixelFontMetrics';
+import {
+  LocationBottomLayout,
+  bagVisualSizes,
+  computeLocationBottomLayout,
+} from './LocationBottomLayout';
 
 const { ccclass } = _decorator;
 
-const CELL = 80;
-// 背包固定 16px 原图 ×4 = 64px；地面按物品数量在 128~32 之间取整数倍
-const BAG_ICON = 64;
-const BAG_PLATE = 72;
-const BAG_GLOW = 80;
+// 背包格尺寸由 LocationBottomLayout 按可视高度自适应（80/64/48）。
 const SMALL_BOX = 96;
 const BIG_BOX = 144;
 const FLOOR_Y = 0;
-const FLOOR_ROW_Y = -86;
-const BAG_Y = -340;
-const HOLD_UI_Y = -505;
+const FLOOR_ROW_Y = -64;
+const HINT_TEXT = '拖动 / 单击物品放入背包';
+const HINT_Y = -163;
+
+/** 提示字号/盒子高度按当前可视宽度实时计算（模块加载时还没有 UILayout.refresh）。 */
+function hintFontSize(): number {
+  return pxFont(12);
+}
+
+function hintBoxHeight(): number {
+  return lineHeightForFontSize(hintFontSize()) + pxSpacing(4);
+}
 const BOX_Y = 330;
 const BOX_COLS = 3;
 
@@ -65,6 +78,8 @@ export class LocationView {
   private ringNode: Node | null = null;
   private ringGraphics: Graphics | null = null;
   private holdLabel: Label | null = null;
+  private holdHintWidth: number = 0;
+  private holdHintHeight: number = 0;
   private holdUpdater: LocationHoldUpdater | null = null;
 
   private boxNodes: Map<string, Node> = new Map();
@@ -78,9 +93,13 @@ export class LocationView {
   private edgeGlowOn: boolean = false;
 
   private heroNode: Node | null = null;
+  private standingHeroNode: Node | null = null;
+  private hintNode: Node | null = null;
 
   private bagGridNode: Node | null = null;
   private bagGridGraphics: Graphics | null = null;
+  private bottomLayout: LocationBottomLayout | null = null;
+  private bagCellSize: number = 80;
   private hoverCell: { x: number; y: number } | null = null;
   private badCells: { x: number; y: number }[] = [];
   private badCellAlpha: number = 1;
@@ -145,23 +164,59 @@ export class LocationView {
     const floorUt = this.floorContainer.addComponent(UITransform);
     floorUt.setContentSize(720, 220);
 
-    // 背包格子区
+    // 底部竖直排版：按钮 → 按住提示条 → 背包格 → 常驻拖放提示。
+    const buttonMetrics = [
+      Art.buttonMetrics('换地点', 112, 44),
+      Art.buttonMetrics('回家', 112, 44),
+    ];
+    const buttonHeight = Math.max(buttonMetrics[0].height, buttonMetrics[1].height);
+    const holdFont = pxFont(12);
+    const holdLineH = lineHeightForFontSize(holdFont);
+    const normalFont = hintFontSize();
+    const normalLineH = lineHeightForFontSize(normalFont);
+    const safeW = Math.max(1, UILayout.visibleW - UILayout.safeLeft - UILayout.safeRight);
+    this.bottomLayout = computeLocationBottomLayout({
+      visibleW: UILayout.visibleW,
+      visibleH: UILayout.visibleH,
+      safeBottom: UILayout.safeBottom,
+      bagW: this.game.bagW,
+      bagH: this.game.bagH,
+      buttonHeight,
+      holdHintHeight: holdLineH * 2,
+      holdHintWidth: Math.max(1, Math.min(600, safeW * 0.8)),
+      normalHintHeight: normalLineH + pxSpacing(4),
+      floorBottom: FLOOR_Y + FLOOR_ROW_Y - 36,
+      bottomMargin: pxSpacing(28),
+      // E/U8：长按提示与按钮至少 8 设计 px；常驻提示在格子正上方 6 设计 px。
+      gap: pxSpacing(8),
+      normalHintGap: pxSpacing(6),
+    });
+    this.bagCellSize = this.bottomLayout.bag.cell;
+
+    // 背包格子区（高度/格子尺寸按可视区域自适应）
     this.bagContainer = uiNode('bag');
     this.bagContainer.parent = this.viewNode;
-    this.bagContainer.setPosition(0, BAG_Y, 0);
+    this.bagContainer.setPosition(0, this.bottomLayout.bag.centerY, 0);
     const bagUt = this.bagContainer.addComponent(UITransform);
-    bagUt.setContentSize(720, 360);
+    bagUt.setContentSize(this.bottomLayout.bag.width, this.bottomLayout.bag.height);
 
     this.createHint();
     this.createButtons();
     this.createHoldUI();
+    this.createLandmark(locId);
 
     this.renderBoxes();
     this.renderFloor();
     this.renderBag();
+    this.createStandingHero();
 
     this.holdUpdater = this.viewNode.addComponent(LocationHoldUpdater);
     this.holdUpdater.onTick = (dt: number) => this.updateHold(dt);
+  }
+
+  /** U1：事件打开时把整个玩法层隐藏，只保留 HUD。 */
+  public setGameplayActive(active: boolean): void {
+    if (this.viewNode && this.viewNode.isValid) this.viewNode.active = active;
   }
 
   public hide(): void {
@@ -170,6 +225,8 @@ export class LocationView {
     if (this.isDragging) this.cancelDrag();
     this.closeMenu();
     this.destroyHeroNode();
+    this.standingHeroNode = null;
+    this.hintNode = null;
     if (this.viewNode) {
       this.viewNode.destroy();
       this.viewNode = null;
@@ -185,9 +242,13 @@ export class LocationView {
     this.ringNode = null;
     this.ringGraphics = null;
     this.holdLabel = null;
+    this.holdHintWidth = 0;
+    this.holdHintHeight = 0;
     this.glowNode = null;
     this.bagGridGraphics = null;
     this.bagGridNode = null;
+    this.bottomLayout = null;
+    this.bagCellSize = 80;
     this.hoverCell = null;
     this.badCells = [];
     this.badCellAlpha = 1;
@@ -209,36 +270,39 @@ export class LocationView {
     if (!this.viewNode) return;
     const hint = uiNode('hint');
     hint.parent = this.viewNode;
+    const fontSize = hintFontSize();
+    // 宽度直接按 BMFont xadvance 算出来，CLAMP 不会改变 UITransform。
+    const textWidth = Math.ceil(measureTextWidth(HINT_TEXT, fontSize));
     const ut = hint.addComponent(UITransform);
-    ut.setContentSize(520, 20);
+    ut.setContentSize(textWidth, hintBoxHeight());
     const lb = hint.addComponent(Label);
-    lb.string = '拖动 / 单击物品放入背包';
-    lb.fontSize = 16;
-    lb.lineHeight = 20;
-    // 提示字加深，并加浅色描边保证在深色背景上仍可读
-    lb.color = new Color(58, 42, 24, 255);
+    lb.string = HINT_TEXT;
+    lb.fontSize = fontSize;
+    lb.lineHeight = lineHeightForFontSize(fontSize);
+    // 提示字加深，并加深色 baked 描边保证在浅色地板上仍可读
+    lb.color = new Color(248, 240, 220, 255);
     lb.horizontalAlign = Label.HorizontalAlign.CENTER;
     lb.verticalAlign = Label.VerticalAlign.CENTER;
-    lb.overflow = Label.Overflow.SHRINK;
-    const outline = hint.addComponent(LabelOutline);
-    outline.color = new Color(255, 246, 220, 230);
-    outline.width = 2;
-    hint.setPosition(0, -163, 0);
+    lb.overflow = Label.Overflow.CLAMP;
+    lb.enableWrapText = false;
+    PixelFont.apply(lb, { color: new Color(248, 240, 220, 255), bg: 'dark' });
+    hint.setPosition(0, this.bottomLayout?.normalHint.centerY ?? HINT_Y, 0);
+    this.hintNode = hint;
   }
 
   private createButtons(): void {
     if (!this.viewNode) return;
 
-    const sideX = Math.min(180, UILayout.halfW - 76);
-    const leaveBtn = Art.makeButton('换地点', 140, 56, () => {
+    const sideX = Math.min(170, UILayout.halfW - 64);
+    const leaveBtn = Art.makeButton('换地点', 112, 44, () => {
       this.game.leaveLocation();
       this.onLeave();
-    });
+    }, pxFont(18));
     leaveBtn.parent = this.viewNode;
     leaveBtn.setPosition(-sideX, 0, 0);
-    alignBottom(leaveBtn, 12);
+    alignBottom(leaveBtn, pxSpacing(28));
 
-    const homeBtn = Art.makeButton('回家', 140, 56, () => {
+    const homeBtn = Art.makeButton('回家', 112, 44, () => {
       const cost = this.game.homeCost();
       if (this.game.goHome()) {
         Fx.floatText(this.viewNode!, `回家消耗 ${cost} 体力`, new Vec3(0, -440, 0));
@@ -246,38 +310,278 @@ export class LocationView {
       } else {
         Fx.floatText(this.viewNode!, `体力不足，回家需 ${cost}`, new Vec3(0, -440, 0), new Color(255, 80, 80, 255));
       }
-    });
+    }, pxFont(18));
     homeBtn.parent = this.viewNode;
     homeBtn.setPosition(sideX, 0, 0);
-    alignBottom(homeBtn, 12);
+    alignBottom(homeBtn, pxSpacing(28));
+  }
+
+  /** 站在地点里的主角：体力/饱腹双低时播喘气/捂肚子，否则 idle。 */
+  private createStandingHero(): void {
+    if (!this.viewNode) return;
+    const name = this.heroArtName();
+    const hero = Art.makeVisual(name, 96, 96, new Color(180, 160, 120, 255));
+    hero.parent = this.viewNode;
+    hero.setPosition(UILayout.halfW - 66, -300, 0);
+    Art.play(hero, name, 8, true);
+    this.standingHeroNode = hero;
+  }
+
+  /** 状态变化后刷新站立主角和暗角（不重建整个地点）。 */
+  public updateHeroState(): void {
+    if (!this.viewNode) return;
+    if (this.standingHeroNode && this.standingHeroNode.isValid) {
+      this.standingHeroNode.destroy();
+      this.standingHeroNode = null;
+    }
+    this.createStandingHero();
+  }
+
+  private heroArtName(): string {
+    const staminaRatio = this.game.maxStamina > 0 ? this.game.stamina / this.game.maxStamina : 0;
+    const hungerRatio = CONFIG.maxHunger > 0 ? this.game.hunger / CONFIG.maxHunger : 0;
+    if (staminaRatio < CONFIG.uiLowRatio && hungerRatio < CONFIG.uiLowRatio) {
+      return staminaRatio <= hungerRatio ? 'hero_pant' : 'hero_hungry';
+    }
+    return 'hero_idle';
+  }
+
+  // ------------------------------------------------------------------
+  // 深圳地标 + 今日限定角标
+  // ------------------------------------------------------------------
+  private createLandmark(locId: string): void {
+    if (!this.viewNode) return;
+    const loc = LOCATIONS.find((l) => l.id === locId);
+    if (!loc) return;
+
+    const halfW = UILayout.halfW;
+    // 左下角留给背包；NPC/地标只占背包左侧的窄条，绝不压住背包格子。
+    const bagLeft = -(this.bottomLayout?.bag.width ?? this.game.bagW * 80) / 2;
+    const left = -halfW + 14;
+    const gutter = Math.max(0, bagLeft - 8 - left);
+    const hasBadge = this.game.hasDailySpecialAt(locId);
+    const centerY = -320;
+
+    // r7：进入地点时显示对应 NPC，并说 r6 的地点台词。
+    // 背包变宽时左侧只剩窄条：NPC 跟着缩，实在放不下就不画，避免压住格子。
+    const npcName = `npc_${locId}`;
+    const npcSize = Math.min(96, gutter);
+    if (Art.frames(npcName).length > 0 && npcSize >= 40) {
+      const npc = Art.makeVisual(npcName, npcSize, npcSize, new Color(150, 130, 110, 255), loc.name);
+      const centerX = left + npcSize / 2;
+      npc.parent = this.viewNode;
+      npc.setPosition(centerX, centerY, 0);
+      Art.play(npc, npcName, 6, true);
+      if (hasBadge) {
+        this.createDailyBadge(npc, npcSize / 2 - 10, npcSize / 2 - 10);
+      }
+      this.createSpeechBubble(loc.line, centerX, halfW, halfW * 2 - 24);
+      return;
+    }
+
+    // NPC 素材缺失：优雅跳过地标图；台词气泡仍要显示，但不能压住背包。
+    this.createSpeechBubble(loc.line, left + Math.min(48, gutter / 2), halfW, halfW * 2 - 24);
+
+    // 限定角标放到背包上方，避免窄屏时落进背包格子。
+    if (hasBadge) {
+      const bagTop = this.bottomLayout?.bag.rect.top ?? 0;
+      this.createDailyBadge(this.viewNode, left + 24, bagTop - 20);
+    }
+  }
+
+  private createDailyBadge(parent: Node, x: number, y: number): void {
+    const w = 64;
+    const h = 36;
+    const badge = uiNode('daily_badge');
+    badge.parent = parent;
+    const ut = badge.addComponent(UITransform);
+    ut.setContentSize(w, h);
+    badge.setPosition(x, y, 0);
+    const g = badge.addComponent(Graphics);
+    g.fillColor = new Color(220, 58, 48, 245);
+    g.roundRect(-w / 2, -h / 2, w, h, 7);
+    g.fill();
+    g.lineWidth = 2;
+    g.strokeColor = new Color(255, 235, 180, 255);
+    g.roundRect(-w / 2, -h / 2, w, h, 7);
+    g.stroke();
+
+    const labelNode = uiNode('label');
+    labelNode.parent = badge;
+    const lut = labelNode.addComponent(UITransform);
+    lut.setContentSize(w, h);
+    const lb = labelNode.addComponent(Label);
+    lb.string = '限定';
+    lb.fontSize = pxFont(12);
+    lb.lineHeight = pxFont(12);
+    lb.color = new Color(255, 248, 220, 255);
+    lb.horizontalAlign = Label.HorizontalAlign.CENTER;
+    lb.verticalAlign = Label.VerticalAlign.CENTER;
+    lb.overflow = Label.Overflow.CLAMP;
+    lb.enableWrapText = false;
+    PixelFont.apply(lb, { color: new Color(255, 248, 220, 255), bg: 'dark' });
+  }
+
+  private createSpeechBubble(text: string, x: number, halfW: number, maxWidth?: number): void {
+    if (!this.viewNode || !text) return;
+    // U8：气泡最大宽度 40% 屏宽；超长台词走统一整词断行，避免压住底部提示。
+    const padX = 12;
+    const padY = 10;
+    const bubbleMaxW = Math.max(120, UILayout.visibleW * 0.4);
+    const metrics = layoutWrappedSpeechBubble(text, {
+      fontSize: pxFont(12),
+      lineHeight: pxFont(12),
+      padX,
+      padY,
+      minWidth: 120,
+      maxWidth: Math.min(bubbleMaxW, Math.max(120, maxWidth ?? bubbleMaxW)),
+    });
+    const w = metrics.width;
+    const h = metrics.height;
+    // 背包格子随档位长高；气泡统一放到格子上方，并同时避开地面物品和底部提示文字。
+    const bagTop = this.bottomLayout?.bag.rect.top ?? 0;
+    const floorBottom = FLOOR_Y + FLOOR_ROW_Y - 36;
+    // 与 createHint 完全相同的 BMFont advance 度量，气泡和提示不会错位。
+    const hintTextWidth = Math.ceil(measureTextWidth(HINT_TEXT, hintFontSize()));
+    const hintBoxH = hintBoxHeight();
+    const hintRect = {
+      left: -hintTextWidth / 2,
+      right: hintTextWidth / 2,
+      top: (this.bottomLayout?.normalHint.centerY ?? HINT_Y) + hintBoxH / 2,
+      bottom: (this.bottomLayout?.normalHint.centerY ?? HINT_Y) - hintBoxH / 2,
+    };
+    const placed = placeSpeechBubble({
+      desiredX: x,
+      width: w,
+      height: h,
+      halfW,
+      // U8：常驻提示已经贴到格子正上方；气泡再放到提示文字上方，避免二者相交。
+      bagTop: Math.max(bagTop, hintRect.top),
+      floorBottom,
+      // 4 设计 px × 设计缩放 = 8px @720；实际再留 10px。
+      gap: Math.max(pxSpacing(4), 10),
+      hint: hintRect,
+    });
+    const bx = placed.x;
+    const by = placed.y;
+    if (placed.hintShiftX !== 0 && this.hintNode && this.hintNode.isValid) {
+      const hintPos = this.hintNode.position;
+      this.hintNode.setPosition(hintPos.x + placed.hintShiftX, hintPos.y, hintPos.z);
+    }
+    const bubble = uiNode('speech_bubble');
+    bubble.parent = this.viewNode;
+    const ut = bubble.addComponent(UITransform);
+    ut.setContentSize(w, h);
+    bubble.setPosition(bx, by, 0);
+    const g = bubble.addComponent(Graphics);
+    g.fillColor = new Color(255, 250, 232, 242);
+    g.roundRect(-w / 2, -h / 2, w, h, 12);
+    g.fill();
+    g.lineWidth = 2;
+    g.strokeColor = new Color(70, 55, 38, 220);
+    g.roundRect(-w / 2, -h / 2, w, h, 12);
+    g.stroke();
+    // 小尾巴指向地标
+    g.fillColor = new Color(255, 250, 232, 242);
+    g.moveTo(-8, -h / 2 + 1);
+    g.lineTo(8, -h / 2 + 1);
+    g.lineTo(0, -h / 2 - 8);
+    g.close();
+    g.fill();
+
+    const labelNode = uiNode('label');
+    labelNode.parent = bubble;
+    const lut = labelNode.addComponent(UITransform);
+    lut.setContentSize(Math.max(1, w - padX * 2), Math.max(1, h - padY * 2));
+    const lb = labelNode.addComponent(Label);
+    lb.string = metrics.text;
+    lb.fontSize = metrics.fontSize;
+    lb.lineHeight = metrics.lineHeight;
+    lb.color = PIXEL_INK_COLOR.clone();
+    lb.horizontalAlign = Label.HorizontalAlign.CENTER;
+    lb.verticalAlign = Label.VerticalAlign.CENTER;
+    lb.overflow = Label.Overflow.CLAMP;
+    // 显式换行；宽度由 BMFont 的真实 advance 预先算好，不靠 SHRINK 缩字。
+    lb.enableWrapText = false;
+    PixelFont.apply(lb, {
+      size: metrics.fontSize,
+      lineHeight: metrics.lineHeight,
+      color: PIXEL_INK_COLOR.clone(),
+      bg: 'light',
+    });
+    labelNode.setPosition(0, 0, 0);
   }
 
   // ------------------------------------------------------------------
   // 按住 UI
   // ------------------------------------------------------------------
+  /** 底栏两个按钮的实际顶边（alignBottom 后）：按住提示必须整体在它上方。 */
+  private bottomButtonTop(): number {
+    return this.bottomLayout?.buttonTop
+      ?? (UILayout.bottom + pxSpacing(28) + Math.max(
+        Art.buttonMetrics('换地点', 112, 44).height,
+        Art.buttonMetrics('回家', 112, 44).height,
+      ));
+  }
+
   private createHoldUI(): void {
     if (!this.viewNode) return;
+    const hintFont = pxFont(12);
+    const hintLineH = lineHeightForFontSize(hintFont);
+    // 提示宽度不超过安全区宽 80%，超长文案换行；预留两行高度。
+    const safeW = Math.max(1, UILayout.visibleW - UILayout.safeLeft - UILayout.safeRight);
+    const hintWidth = Math.max(1, Math.min(600, safeW * 0.8));
+    const hintHeight = this.bottomLayout?.holdHint.height ?? hintLineH * 2;
+    this.holdHintWidth = hintWidth;
+    this.holdHintHeight = hintHeight;
+
     this.holdUI = uiNode('hold_ui');
     this.holdUI.parent = this.viewNode;
-    this.holdUI.setPosition(0, HOLD_UI_Y, 0);
+    // r30：提示条底边在按钮上沿 8px，顶边在背包格下方 8px；
+    // 使用完全不透明的独立底板，就算极端机型也不会让格线穿过文字。
+    this.holdUI.setPosition(0, this.bottomLayout?.holdHint.centerY ?? (this.bottomButtonTop() + 8 + hintHeight / 2), 0);
     const hut = this.holdUI.addComponent(UITransform);
-    hut.setContentSize(600, 100);
+    hut.setContentSize(hintWidth, hintHeight);
+
+    const plate = uiNode('hold_hint_plate');
+    plate.parent = this.holdUI;
+    const put = plate.addComponent(UITransform);
+    put.setContentSize(hintWidth, hintHeight);
+    plate.setPosition(0, 0, 0);
+    // 先铺一层 alpha=255 的深色底，再叠 bottom_bar 九宫格纹理。
+    const under = plate.addComponent(Graphics);
+    under.fillColor = new Color(12, 14, 20, 255);
+    under.roundRect(-hintWidth / 2, -hintHeight / 2, hintWidth, hintHeight, pxSpacing(4));
+    under.fill();
+    const art = Art.makeVisual('bottom_bar', hintWidth, hintHeight, new Color(12, 14, 20, 255));
+    art.name = 'hold_hint_art';
+    art.parent = plate;
+    art.setPosition(0, 0, 0);
+    const sp = art.getComponent(Sprite);
+    if (sp) sp.type = Sprite.Type.SLICED;
+    const op = art.getComponent(UIOpacity) ?? art.addComponent(UIOpacity);
+    op.opacity = 255;
 
     // 进度环在外面围绕盒子绘制，这里只保留体力/消耗文字
     const labelNode = uiNode('label');
     const lut = labelNode.addComponent(UITransform);
-    lut.setContentSize(500, 28);
+    lut.setContentSize(hintWidth, hintHeight);
     this.holdLabel = labelNode.addComponent(Label);
     this.holdLabel.string = '';
-    this.holdLabel.fontSize = 20;
-    this.holdLabel.lineHeight = 24;
+    this.holdLabel.fontSize = hintFont;
+    this.holdLabel.lineHeight = hintLineH;
     this.holdLabel.color = new Color(255, 255, 255, 255);
     this.holdLabel.horizontalAlign = Label.HorizontalAlign.CENTER;
     this.holdLabel.verticalAlign = Label.VerticalAlign.CENTER;
+    this.holdLabel.overflow = Label.Overflow.CLAMP;
+    this.holdLabel.enableWrapText = false;
+    PixelFont.apply(this.holdLabel, { color: new Color(255, 255, 255, 255), bg: 'dark' });
     labelNode.parent = this.holdUI;
-    labelNode.setPosition(0, -16, 0);
+    labelNode.setPosition(0, 0, 0);
 
     this.holdUI.active = false;
+    // 提示层永远压在背包格线上方。
+    this.holdUI.setSiblingIndex(this.viewNode.children.length - 1);
 
     // 圆形进度环（围绕正在按的盒子）
     this.ringNode = uiNode('hold_ring');
@@ -469,7 +773,21 @@ export class LocationView {
     const staminaCost = CONFIG.digStamina[box.size] + sec * CONFIG.holdStaminaPerSec;
     const remaining = this.game.stamina;
     if (this.holdLabel) {
-      this.holdLabel.string = `剩余体力 ${remaining} / 本次将扣 ${staminaCost.toFixed?.(1)}`;
+      const text = `体力 ${Math.round(remaining)} · 本次 -${Math.round(staminaCost)}`;
+      // 文字只在数值变化时重排；超宽时先缩到可用宽度内，再换两行。
+      if (this.holdLabel.string !== text) {
+        const fit = fitCardText(text, {
+          maxWidth: Math.max(1, this.holdHintWidth),
+          maxHeight: Math.max(1, this.holdHintHeight),
+          fontSize: pxFont(12),
+          minFontSize: pxFont(12),
+          lineGap: 0,
+        });
+        this.holdLabel.string = fit.text;
+        this.holdLabel.fontSize = fit.fontSize;
+        this.holdLabel.lineHeight = fit.lineHeight;
+        this.holdLabel.enableWrapText = false;
+      }
     }
 
     // 长按到金色才给屏幕边缘光；彩虹只在真正开出史诗时由开奖流程处理
@@ -615,6 +933,8 @@ export class LocationView {
 
     // 视图已经切走/游戏结束就不再结算这次挖盒
     if (this.game.phase !== 'location') return;
+    const oldFloorUids = this.game.floor.map((i) => i.uid);
+    const oldStyle = this.floorStyle();
     const result = this.game.dig(boxId, holdSec);
     if (!result.ok) {
       if (result.reason && this.viewNode) {
@@ -628,6 +948,13 @@ export class LocationView {
     if (result.mishap) {
       this.spawnMishapEffect();
       Fx.screenShake(this.root);
+    }
+
+    // 数量跨过 style 档位时，先按新尺寸重建已有地面节点，
+    // 再让新物品走飞入动画；否则旧 130px 底板会和新小底板重叠。
+    const newStyle = this.floorStyle();
+    if (newStyle.icon !== oldStyle.icon) {
+      this.rebuildExistingFloor(oldFloorUids, token);
     }
 
     // 物品飞入待选区；每件稀有/史诗单独高亮 + 真冻结 0.3s
@@ -774,14 +1101,22 @@ export class LocationView {
     const tut = textNode.addComponent(UITransform);
     tut.setContentSize(344, 78);
     const lb = textNode.addComponent(Label);
-    lb.string = `${def.name}\n${def.desc}`;
-    lb.fontSize = 20;
-    lb.lineHeight = 24;
+    const revealFit = fitCardText(`${def.name}\n${def.desc}`, {
+      maxWidth: 344,
+      maxHeight: 78,
+      fontSize: pxFont(12),
+      minFontSize: pxFont(12),
+      lineGap: 0,
+    });
+    lb.string = revealFit.text;
+    lb.fontSize = revealFit.fontSize;
+    lb.lineHeight = revealFit.lineHeight;
     lb.color = new Color(255, 250, 230, 255);
     lb.horizontalAlign = Label.HorizontalAlign.CENTER;
     lb.verticalAlign = Label.VerticalAlign.CENTER;
-    lb.overflow = Label.Overflow.SHRINK;
-    lb.enableWrapText = true;
+    lb.overflow = Label.Overflow.CLAMP;
+    lb.enableWrapText = false;
+    PixelFont.apply(lb, { size: revealFit.fontSize, lineHeight: revealFit.lineHeight, color: new Color(255, 250, 230, 255), bg: 'dark' });
     textNode.setPosition(0, 0, 0);
 
     await Fx.sceneFreeze(this.viewNode, 0.3);
@@ -800,7 +1135,7 @@ export class LocationView {
     const isFloor = context === 'floor';
     const style = isFloor
       ? this.floorStyle()
-      : { icon: BAG_ICON, plate: BAG_PLATE, glow: BAG_GLOW };
+      : bagVisualSizes(this.bagCellSize);
     const iconSize = style.icon;
     const plateSize = style.plate;
     const glowSize = style.glow;
@@ -899,27 +1234,38 @@ export class LocationView {
     }
   }
 
-  /** 地面物品按数量选 16px 的整数倍：4 件以内 128，更多时逐级缩小。 */
   private floorStyle(): { icon: number; plate: number; glow: number } {
-    const n = Math.max(1, this.game.floor.length);
     const safeW = Math.min(720, UILayout.visibleW) - 56;
-    const sizes = [128, 112, 96, 80, 64, 48, 32];
-    for (const icon of sizes) {
-      const plate = icon + 2;
-      if (n * plate + Math.max(0, n - 1) * 4 <= safeW) {
-        return { icon, plate, glow: icon + 32 };
-      }
-    }
-    return { icon: 32, plate: 36, glow: 64 };
+    return floorLootStyle(this.game.floor.length, safeW);
   }
 
   private getFloorSlotPosition(index: number): Vec3 {
     const n = Math.max(1, this.game.floor.length);
     const style = this.floorStyle();
     const safeW = Math.min(720, UILayout.visibleW) - 56;
-    const spacing = n <= 1 ? 0 : Math.min(style.plate + 4, safeW / (n - 1));
-    const totalW = (n - 1) * spacing;
-    return new Vec3(-totalW / 2 + index * spacing, FLOOR_ROW_Y, 0);
+    return new Vec3(floorSlotX(index, n, style.plate, safeW), FLOOR_ROW_Y, 0);
+  }
+
+  /** 按当前 floorStyle 重建已有物品节点（不包含刚挖出、还没飞入的新物品）。 */
+  private rebuildExistingFloor(uids: number[], token: number): void {
+    if (!this.isAlive(token) || !this.floorContainer || !isValid(this.floorContainer, true)) return;
+    for (const node of this.floorNodes.values()) {
+      if (node && node.isValid) node.destroy();
+    }
+    this.floorNodes.clear();
+    for (const uid of uids) {
+      const idx = this.game.floor.findIndex((i) => i.uid === uid);
+      if (idx < 0) continue;
+      const item = this.game.floor[idx];
+      const def = ITEMS.find((i) => i.id === item.itemId);
+      const node = this.createItemNode(item, def, undefined, 'floor');
+      node.parent = this.floorContainer;
+      const target = this.getFloorSlotPosition(idx);
+      node.setPosition(target.x, target.y, 0);
+      node.angle = (this.floorRotated.get(uid) ?? false) ? 90 : 0;
+      this.floorNodes.set(uid, node);
+      this.attachFloorTouch(node, uid);
+    }
   }
 
   private layoutFloor(): void {
@@ -1000,12 +1346,13 @@ export class LocationView {
     g.clear();
     const w = this.game.bagW;
     const h = this.game.bagH;
-    const totalW = w * CELL;
-    const totalH = h * CELL;
+    const cell = this.bagCellSize;
+    const totalW = w * cell;
+    const totalH = h * cell;
     for (let j = 0; j < h; j++) {
       for (let i = 0; i < w; i++) {
-        const cx = -totalW / 2 + i * CELL + CELL / 2;
-        const cy = totalH / 2 - j * CELL - CELL / 2;
+        const cx = -totalW / 2 + i * cell + cell / 2;
+        const cy = totalH / 2 - j * cell - cell / 2;
         let state: 'normal' | 'hover' | 'bad' | 'filled' = 'normal';
         if (this.hoverCell && this.hoverCell.x === i && this.hoverCell.y === j) {
           state = 'hover';
@@ -1014,7 +1361,7 @@ export class LocationView {
         } else if (this.isCellOccupied(i, j)) {
           state = 'filled';
         }
-        Art.drawCell(g, cx, cy, CELL, state, this.badCellAlpha);
+        Art.drawCell(g, cx, cy, cell, state, this.badCellAlpha);
       }
     }
   }
@@ -1029,13 +1376,13 @@ export class LocationView {
   }
 
   private placedToLocal(x: number, y: number, w: number, h: number): Vec3 {
-    const center = bagCellCenter(this.game.bagW, this.game.bagH, CELL, x, y, w, h);
+    const center = bagCellCenter(this.game.bagW, this.game.bagH, this.bagCellSize, x, y, w, h);
     return new Vec3(center.x, center.y, 0);
   }
 
   /** 把节点放到占用格矩形的中心；按节点实际锚点和尺寸修正 position。 */
   private placeBagNode(node: Node, x: number, y: number, w: number, h: number): void {
-    const center = bagCellCenter(this.game.bagW, this.game.bagH, CELL, x, y, w, h);
+    const center = bagCellCenter(this.game.bagW, this.game.bagH, this.bagCellSize, x, y, w, h);
     const ut = node.getComponent(UITransform);
     const anchor = ut ? ut.anchorPoint : { x: 0.5, y: 0.5 };
     const size = ut ? ut.contentSize : { width: 48, height: 48 };
@@ -1282,15 +1629,16 @@ export class LocationView {
 
     const world = viewUt.convertToWorldSpaceAR(new Vec3(touchView.x, touchView.y, 0));
     const bagLocal = bagUt.convertToNodeSpaceAR(world);
-    const totalW = this.game.bagW * CELL;
-    const totalH = this.game.bagH * CELL;
+    const cell = this.bagCellSize;
+    const totalW = this.game.bagW * cell;
+    const totalH = this.game.bagH * cell;
     const startX = -totalW / 2;
     const startY = totalH / 2;
     const relX = bagLocal.x - startX;
     const relY = startY - bagLocal.y;
     if (relX < 0 || relY < 0 || relX >= totalW || relY >= totalH) return null;
-    const x = Math.floor(relX / CELL);
-    const y = Math.floor(relY / CELL);
+    const x = Math.floor(relX / cell);
+    const y = Math.floor(relY / cell);
     if (x < 0 || x >= this.game.bagW || y < 0 || y >= this.game.bagH) return null;
     return { x, y };
   }
@@ -1406,7 +1754,16 @@ export class LocationView {
     }
 
     const panelW = 280;
-    const panelH = Math.max(200, 100 + actions.length * 56);
+    const titleSize = titleFontSizeForText(def.name, panelW - 20);
+    const titleH = lineHeightForFontSize(titleSize);
+    const actionMetrics = actions.map((a) => Art.buttonMetrics(a.text, 210, 48));
+    const actionW = Math.max(210, ...actionMetrics.map((m) => m.width));
+    const actionH = Math.max(...actionMetrics.map((m) => m.height));
+    const actionGap = pxSpacing(4);
+    const panelH = Math.max(
+      200,
+      Math.ceil(titleH + pxSpacing(18) + actions.length * (actionH + actionGap) + pxSpacing(10)),
+    );
     const menu = uiNode('item_menu');
     menu.parent = this.viewNode;
     const mut = menu.addComponent(UITransform);
@@ -1438,23 +1795,26 @@ export class LocationView {
 
     const title = uiNode('title');
     const tut = title.addComponent(UITransform);
-    tut.setContentSize(panelW - 20, 40);
+    tut.setContentSize(panelW - 20, titleH);
     const tl = title.addComponent(Label);
     tl.string = def.name;
-    tl.fontSize = 24;
-    tl.lineHeight = 28;
+    tl.fontSize = titleSize;
+    tl.lineHeight = lineHeightForFontSize(titleSize);
     tl.color = new Color(255, 255, 255, 255);
     tl.horizontalAlign = Label.HorizontalAlign.CENTER;
     tl.verticalAlign = Label.VerticalAlign.CENTER;
+    tl.overflow = Label.Overflow.CLAMP;
+    tl.enableWrapText = false;
+    PixelFont.apply(tl, { color: new Color(255, 255, 255, 255), bg: 'dark' });
     title.parent = panel;
-    title.setPosition(0, panelH / 2 - 34, 0);
+    title.setPosition(0, panelH / 2 - pxSpacing(8) - titleH / 2, 0);
 
-    let y = panelH / 2 - 84;
+    let y = panelH / 2 - pxSpacing(14) - titleH - actionH / 2;
     for (const action of actions) {
-      const btn = Art.makeButton(action.text, 210, 44, action.tap, 20);
+      const btn = Art.makeButton(action.text, actionW, actionH, action.tap);
       btn.parent = panel;
       btn.setPosition(0, y, 0);
-      y -= 56;
+      y -= actionH + actionGap;
     }
 
     menu.setSiblingIndex(this.viewNode.children.length - 1);
@@ -1462,7 +1822,7 @@ export class LocationView {
   }
 
   private addMenuButton(parent: Node, text: string, pos: Vec3, onClick: () => void): void {
-    const btn = Art.makeButton(text, 210, 44, onClick, 20);
+    const btn = Art.makeButton(text, 210, 48, onClick, pxFont(18));
     btn.parent = parent;
     btn.setPosition(pos.x, pos.y, 0);
   }

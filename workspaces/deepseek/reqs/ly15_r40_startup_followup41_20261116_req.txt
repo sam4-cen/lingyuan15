@@ -1,0 +1,29 @@
+续 followup40，此为 followup41。协调者只转述本轮只读取证，请你负责具体启动链诊断与判断。不要把“请用户做普通编译/运行”当作唯一能力结论。本方不看图推断、不改脚本逻辑。不写仓库、不操作 Mac、不发运行/compile/open/preview/auto/cache 命令、不改配置/AppID/private、不创建副本、不签真实触摸/全流程。注入探针不是正常触摸。
+
+已知现状（21:35 新图，followup40 已逐图 read_image，不要再用 16:30 旧图判断，也不要再要求重复信任或改模式）：
+- window 3031 已是“小游戏模式”，作者信任框已消失；文件树/标签强指向 v2 futian_cbd（含 __ly15_probe_driver.js、case.json 等），绝对路径未在图中显示。
+- 模拟器纯黑，无地图、无限定牌。Console 仅见“getSystemInfo API 提示”，没有 LY15_PROBE: START / READY / FAIL / LOG_PATH。
+- 3029 是 wechatgame 工程窗，不能当福田 probe 证据。
+- 因此尚无完整 READY，不能判 below/merged，不能签通过。黑屏也可能与 Console 过滤、编译状态等未证因素有关；截图里过滤是否能证也由你判断，勿泛猜缓存。不能因缺 START 直接编根因。
+
+本轮只读文件（Mac 根 /Users/[REDACTED]/Documents/ly15_probe_cases_r40_d3d65b6_20261116_v2/futian_cbd ，正规 CopyToBox，未改文件、未扫 Library）：
+- /workspace/ly15_r40_futian_v2_case/game.js 13673B sha256 02c02ea264f1e63f8ec8da75f29d3c795c3ce10ae610028fb77d316ad0f532a7
+- /workspace/ly15_r40_futian_v2_case/__ly15_probe_driver.js 10966B sha256 3e120869d7cbeeeca482bfb9657e933b44b41ecd589d4091d8d65a63f8adf5a8
+  （与 box 工具 /workspace/ly15_probe_tools_r40_d3d65b6_20261116_v2/probe_driver.js 同 hash）
+- /workspace/ly15_r40_futian_v2_case/case.json 210B sha256 ea458fec4093a189c248c8d99006bebb6795821ec94e0323fab95f7addaa10ba
+- /workspace/ly15_r40_futian_v2_case/case_manifest.json 784B sha256 387e53e1e4ed60e0437179dbfa7bdcc2359aeeefd09c8228a2dd046416a62cec
+- /workspace/ly15_r40_futian_v2_case/game.json 298B sha256 ba51fb6c9df785c056f17da834ae3ef880a9b9652e68cd8039b7ea7eca879d9e
+请只读上述全文，并只读现有 box 工具：
+- /workspace/ly15_probe_tools_r40_d3d65b6_20261116_v2/probe_prepare.py
+- /workspace/ly15_probe_tools_r40_d3d65b6_20261116_v2/probe_driver.js
+- /workspace/ly15_probe_tools_r40_d3d65b6_20261116_v2/RUNBOOK.md
+必要也可对照 followup40 final：/workspace/ly15_r40_posttrust_followup40_20261116_final.txt
+
+请核实际 game.js 注入是否真的调用 driver、调用点在异步 loader 之前还是之后、START 何时执行、是否等待全局 cc、case 入口/资源路径、可见语法错误等具体已知启动链。证据不足就列缺口，不要编根因。
+
+微信开发者工具 CLI 本轮只读执行一次（非 Cocos help，未发运行/compile/open）：
+/Applications/wechatwebdevtools.app/Contents/MacOS/cli --help
+exit 0，完整原文已写入 /workspace/ly15_r40_startup_followup41_cli_help.txt
+顶层 Commands 可见：cloud, open, login, islogin, preview, auto-preview, upload, build-npm, auto, auto-replay, reset-fileutils, close, quit, cache, engine, open-other, build-ipa, build-apk。未见名为 compile 或 run 的子命令。未再猜测或执行任何子命令 --help。历史已有（勿当本轮新执行）：cli open --help 仅 --project/--port/--lang/--debug/--disable-gpu/--help；cli auto --help 见 /workspace/ly15_mac_readonly_cmds_auto_help_20261116.md。不要建议被拒 Automator 内部文件、未授权端口、新服务、cache 清理。
+
+请核当前已有官方 help/已引用公开文档中，是否存在可对现有已打开项目做普通编译/运行、且不重建、不新增 case 的正规命令。给出有据精确命令及其影响，交本方决定；本轮不要让协调者执行它们。若现有 help/文档无法证实此类命令，明确说依据不足。若确实只能用户 GUI，给最小确证操作及理由，不要编具体按钮路径，也不要把 GUI 当作已证明的唯一能力。尽量用当前这些精确文件闭环，不泛调研、不联网扩大范围。把未获源码/CLI 依据的缺口列清。尽快给简明可行动结果。

@@ -2112,7 +2112,7 @@ export class Game {
     const dayText = `第 ${this.day} 天`;
     if (this.todayEdibleSeen.length > 0) {
       const name = this.findItemDef(this.todayEdibleSeen[this.todayEdibleSeen.length - 1])?.name ?? '可吃的东西';
-      return `${dayText}，舍不得吃那块${name}，饿晕了`;
+      return `${dayText}，舍不得吃那${name}，饿晕了`;
     }
     const causes = [
       `${dayText}，在深圳的街头饿成了纸片人`,

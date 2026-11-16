@@ -1,0 +1,3 @@
+立即实际read_image /workspace/ly15-shots/probe_futian_current_1529.png（704KB）。测试转述小游戏授权会话已prepare输出PREPARED/两case/HASHES，随后open新福田副本，重新枚举新窗2909 onscreen截此图。Mac579629上次尚preparing，测试正核终态，不能从open/prepare报告推READY。未改原配置/送测构建，这是注入布局测试。
+逐项读当前页、图内项目标签/模式/版本、LY15_PROBE START/READY/LOG_PATH/FAIL、stage/reason/实际root诊断，地图/限定牌/bounds/dx是否有证据；图内不清就未知，不能凭当前预期probe版本猜字段。若初期配置加载弹窗，只报告此时快照，不再反复调模式/重开/改字段，需要完成加载后同窗新证据或精确日志。已有15:21三窗后来自行正常加载的历史说明“暂态错误可能”但不能据此保证这次会恢复。
+只读既有probe_driver.js/RUNBOOK辅助解释准确日志格式；不联网/不Mac/不执行/不改文件。给一个最小下一步：优先现有窗口完成加载后的新图或可见精确LOG_PATH日志，若FAIL则针对真实stage建议，不盲换新副本/猜API。没有READY不签布局；READY也只证明布置要再按图判断，非正常触摸/全流程。返回短可行动结果。

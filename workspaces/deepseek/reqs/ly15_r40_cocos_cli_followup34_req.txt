@@ -1,0 +1,5 @@
+新 Mac 证据（测试转述，不要据此去扫 Mac 或执行构建）：小游戏报告 test -x Cocos 路径成功：/Applications/Cocos/Creator/3.8.8/CocosCreator.app/Contents/MacOS/CocosCreator。settings/v2/packages/builder.json 仅 bundleConfig 含 wechatgame(subpackage)；profiles builder 仅 log.level=4，不能当完整构建任务。两脚本父 hash 已核，独立新源码副本准备中。原件 /Users/[REDACTED]/Documents/lingyuan15 与旧 build 必须保留；只限全新独立源码/输出目录。
+
+请现在使用公开官方 Cocos Creator 3.8 命令行构建正文，具体核：--project / --build、platform=wechatgame、buildPath、outputName（如需要）、新输出路径是否附带平台子目录，以及构建可能覆盖/删除哪个输出目录。不要因无历史命令就直接交用户 UI。取可引用的官方正文短引与准确 URL；给经正文证实的精确最小构建命令、工作目录、期望实际 game.js 根，以及 seal/probe --build-dir 应使用的路径。
+
+区分：文档已证 / 当前安装只读 help 待证。若公开正文不足，交正规 CLI 只读帮助命令供小游戏执行；不编 flag，不能擅用可能直接触发构建的假 help。禁止你访问 Mac、开网络服务、装包、扫 Library、访问被拒 Automator 路径，不改代码、不改提交、不执行构建。检索/阅读上限：≤3 次检索、≤4 个官方正文页；只要已有足够证据即停，不要泛研。本轮只输出已核实命令与缺口，未实施。

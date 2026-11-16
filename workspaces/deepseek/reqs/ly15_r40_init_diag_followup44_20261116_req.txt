@@ -1,0 +1,33 @@
+续 followup43，此为 followup44。协调者只转述本轮 Mac 正规 apply 与新截图，请你用官方 read_image 逐图分析。不要把转述或 21:35 旧图当成当前结论，不要让协调者自行判图。不写仓库、不操作 Mac、不改游戏源码/构建/配置/AppID、不新建 case、不签真实触摸/全流程，没有完整布局 READY 不签布局通过。注入/诊断探针不是正常触摸。
+
+本轮已在授权范围内执行（Asia/Shanghai / CST），未 open、未 prepare、未新建 case/窗口、未 GUI 点击、未反复编译：
+
+1) ListMachines：Mac [REDACTED] connected=true。apply 门禁 hash 已核通过后，CopyFromBox 三工具到全新 /Users/[REDACTED]/Documents/ly15_r40_init_diag_tools_20261116_2145（原先不存在），Mac hash 与 box 一致。
+2) 按 runbook 执行：
+/usr/bin/python3 /Users/[REDACTED]/Documents/ly15_r40_init_diag_tools_20261116_2145/apply_init_diag.py --approved --case-dir /Users/[REDACTED]/Documents/ly15_probe_cases_r40_d3d65b6_20261116_v2/futian_cbd --build-game-js /Users/[REDACTED]/Documents/ly15_r40_buildroot_d3d65b6_20261116/wechatgame/game.js --backup-dir /Users/[REDACTED]/Documents/ly15_r40_init_diag_backup_20261116_2145
+APPLY_EXIT=0。备份目录原先不存在，备份成功后再改 case 测试入口。
+备份核验：
+- game.js.v2_injected 13673B / 02c02ea264f1e63f8ec8da75f29d3c795c3ce10ae610028fb77d316ad0f532a7
+- __ly15_probe_driver.js.v2 10966B / 3e120869d7cbeeeca482bfb9657e933b44b41ecd589d4091d8d65a63f8adf5a8
+新 case：
+- futian_cbd/game.js 11661B / 776ec99d330838705588ab10c8a0ad8f409a0c789d8a72a22901efa5c63515ed（与 apply_manifest 一致）
+- __ly15_init_diag_driver.js 8954B / 3e7d8277b81e194ee77bdb02655745554c0c14c315409c4dbe2ea807ea51809c
+旧 v2 driver 仍在 case 且 hash 未改：3e120869...；case_manifest.json 仍为历史 v2，hash 387e53e1e4ed60e0437179dbfa7bdcc2359aeeefd09c8228a2dd046416a62cec。密封 build 原 game.js 未改 2522B / 32a997ce...。apply_manifest 已 CopyToBox：/workspace/ly15_r40_init_diag_apply_manifest_20261116_2145.json
+
+3) 本轮重新枚举（JXA castRefToObject，Aqua）：ownerPID 2840。onscreen/layer0：
+- 3031 title="lingyuan15 - 微信开发者工具 Stable 2.01.2510260" bounds={X:95,Y:0,Width:1250,Height:900}
+- 3029 同标题、同 bounds
+- 2909 title="wechatgame - ..." 未截
+枚举无法仅凭标题唯一判定福田窗，故对两扇本轮仍 onscreen/layer0 的 lingyuan15 窗各取一张全新图，不是历史盲拍，也未覆盖 21:35 旧件。未扫 Library，未猜 USER_DATA_PATH 宿主路径，未直接 cat 运行时 URL。
+
+新截图（/bin/test 路径事先不存在；screencapture -x -l 均 exit 0 且非空）：
+Mac：/Users/[REDACTED]/Documents/ly15_r40_init_diag_shots_20261116_2149/
+- window_3031_2149.png | 642736 bytes | 2026-11-16T21:49:50+0800
+- window_3029_2149.png | 683411 bytes | 2026-11-16T21:49:52+0800
+已 CopyToBox：
+- /workspace/ly15-shots/window_3031_2149.png sha256 86100ae8a026e297d227f1de84dfda6289e433341f2cd057b511cfb690b5b4c5
+- /workspace/ly15-shots/window_3029_2149.png sha256 c469fb8a38ad1459b693fee7bfa3e3576b499f0f5e6aeb93c773ff2288cfad02
+
+请立即逐图 read_image 上述 2 张 21:49 新图，不能漏图或用 window_*_2135.png / 1629.png 替代。必须从图内核实：哪一扇是已信任的 futian_cbd；当前模式；是否自动刷新后出现完整
+LY15_DIAG: START / SAMPLE / FINAL / LOG_PATH
+以及候选 instanceofGameRoot、nodePath/nodeInSceneTree、lifecycle 类型、gameType/gamePresent 等。不要把旧 LY15_PROBE: FAIL/READY 或信任/模式问题沿用为当前结论。没有新 DIAG 日志就明确写：本次仅 apply 成功、现有窗口未见自动运行证据；给小游戏用户当前会话一个必要的 GUI 刷新步骤后即停，不要建议协调者代点、不要重复截图/轮询/重开、不要编按钮路径。若有诊断但仍不能定位具体 await，如实报告，不要扩大游戏源码修改。没有布局 READY 不签布局。尽快给简明可行动结果。

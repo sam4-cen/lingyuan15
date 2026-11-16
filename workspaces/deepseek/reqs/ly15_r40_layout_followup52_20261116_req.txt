@@ -1,0 +1,24 @@
+续 followup51，此为 followup52。福田 merged 注入专项通过证据已保留，不要重跑福田，不要改写福田已通过结论。
+
+背景（不是再请用户操作）：小游戏 23:53 补转，用户 22:31 t128u 已答「好」并确认对现有东门做了普通编译；因交接遗漏未及时到父会话，不是用户未操作。22:27 之后到本轮启动前，协调者确无 API/Mac 任务在跑。本轮直接接现有东门窗口取最新图，不再 open/重开/刷新/新建 case，不改配置，不再要求用户重复编译、复制日志或调整。不得把旧图 window_3461_2222.png 当作最新结果。不得伪造 READY，不得降低验收标准。注入专项不是真实触摸/全流程。不要做冗余启动调查，不要扫 Library、不要猜运行时宿主路径、不要用内部接口或端口。
+
+本轮事实（Asia/Shanghai / CST）：
+- Mac [REDACTED] connected。2026-11-16 23:54:24 CST 重新枚举（不盲用历史 3461）：本轮 onscreen/layer0 且标题为 lingyuan15 的窗口只剩 3461 与 3031（同 bounds，ownerPID 2840）。2909 标题为 wechatgame，未截。先前的 3029 本轮枚举中未再出现。标题无法区分东门/福田，故只取这两个最少候选，请你从图内用顶部标签 dongmen、左侧文件树 DONGMEN、且含 __ly15_layout_probe_driver_v2.js 来认定东门窗口；不要把福田窗当东门证据。
+
+全新截图（screencapture -x -l，exit 0，非空，未覆盖旧件，不可用 2222 替代）：
+- Mac：/Users/[REDACTED]/Documents/ly15_r40_layout_probe_v2_shots_20261116_2354/window_3461_2354.png | 825025 bytes | 2026-11-16T23:54:34+0800
+  box：/workspace/ly15-shots/window_3461_2354.png sha256 1f57719694607af20ff66949d2db76a8b6579d260bfb5f79de67f8dffe210c40
+- Mac：/Users/[REDACTED]/Documents/ly15_r40_layout_probe_v2_shots_20261116_2354/window_3031_2354.png | 838829 bytes | 2026-11-16T23:54:35+0800
+  box：/workspace/ly15-shots/window_3031_2354.png sha256 9c1b0bfefbc857b2185e90f186c58d1801f75a2af2e77d13bc7c5c223ed57e27
+
+请立即对上述两张新图都做官方 read_image。先认定哪一张是现有东门（dongmen / DONGMEN / __ly15_layout_probe_driver_v2.js），再只根据该东门新图核：
+- 模式、有无信任框；
+- 是否出现完整
+  LY15_PROBE: READY {"probeVersion":"r40-layout-ready-v2","case":"dongmen","player":"baishizhou","buildTag":"r40 d3d65b6"}
+  以及 stage/reason/placementSide/badgeBounds/plateBounds/dx/ownIconOverlap/heroOverlap/mergedHeightMatches/belowCentered/logPath/logOk；
+- 图与运行时是否同窗匹配；
+- dx 两中心 /2；below 须 abs(dx)<=0.5 且无玩家/自家图标冲突；merged 时 dx 不必为 0，不可横滑冒充居中，文字「限定」须完整。
+
+只有完整真实 READY 身份与布局字段都齐，才能明确签东门通过或不通过。证据不全不要冒签。若东门通过：给出可并入两 case 专项证据的简明清单，并写明注入专项不是真实触摸/全流程。若仍缺证据：如实写出东门新图里实际可见内容与缺口；不要机械要求用户再普通编译。只有存在真正唯一阻碍时才给出该动作和可靠窗口识别。
+
+尽快给简明可行动结果。

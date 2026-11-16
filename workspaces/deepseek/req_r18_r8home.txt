@@ -1,0 +1,17 @@
+Implement ALL of /workspace/req_r8_home.md (r8 home scene + settlement card, confirmed by the boss). Code first; art comes later from ui/ux into /workspace/lingyuan_art/bg/ with names home_lv1/home_lv2/home_lv3 and sleep_park/sleep_burger/sleep_netcafe (180x320, <=20KB). If an image is missing, load gracefully (fallback to a plain dark panel/existing bg) — the code must work before the art arrives and pick it up automatically from resources in the bg subpackage once the files are added (load from bg subpackage path art/bg/<name> or whatever bg-subpackage convention the project uses; document the exact destination path in your report).
+- Home level becomes 3 tiers (initial + 2 upgrades), prices unchanged; on 「升级落脚点」 switch scene immediately with a short hero move-in animation; hero sleeping animation; simple blinking city-lights effect.
+- Sleeping rough (collapsed away from home): background by sleep location (park bench / 24h burger / netcafe — map these to existing locations/logic sensibly, document mapping); the woke-up item-loss toast overlays it.
+- Settlement = small pixel pop-up card over the home scene (remove the big cardboard panel and empty space): icon+number rows for today's income, most absurd item (with item icon), hunger left, stamina left; one big roast line chosen by day's situation from a pool of >=20 lines (no repeats in a run where possible, deterministic with seeded RNG; numbers/lines in config.ts or a core text module); three icon tiles 买吃的/扩背包/升级落脚点, greyed with 「还差 ¥X」 when unaffordable; 「睡觉」 is the biggest primary button -> black fade transition -> next day's fortune.
+- Top HUD reuses the r7 stamina/hunger bars with labels and numbers.
+Constraints: numbers only in src/core/config.ts; no gameplay rule changes; keep src/core == cocos/assets/scripts/core; main package < 4096KB (very little headroom; backgrounds in bg subpackage); valid .meta for new assets; don't regress earlier fixes (text layout, death causes, bubbles, r7 UI). Add core tests (roast selection, tile affordability, home tier progression).
+Run `npx tsx --test test/game.test.ts` and `npx tsc -p cocos/tsconfig.check.json` (0 errors), commit, report commit hash and each item.
+
+ART IS NOW READY in /workspace/lingyuan_art/ (see README r8 section). Use it:
+- bg/home_lv1.png (overpass cardboard), home_lv2.png (urban-village bed), home_lv3.png (room with window+fan), 180x320. Night-light transparent overlays bg/home_lv1_lights.png and home_lv3_lights.png: blink by tweening opacity.
+- Sleeping rough: bg/sleep_park.png, sleep_netcafe.png (new versions), sleep_burger.png (new). Ignore old sleep_fastfood.
+- Hero: sprites/hero_sleep_0..3 (48x32 each, lying, breathing) for sleeping; sprites/hero_move_0..3 (32x32, carrying bundle) for moving in on upgrade.
+- Settlement card: ui/settle_card.png 34x45, 9-slice borders 4/4/4/4, scale up. Stat icons ui/stat_income, stat_fullness, stat_stamina (use the _24 versions).
+- Function tiles: ui/slot_food, slot_bag, slot_home (48x48) and _gray versions when unaffordable.
+- Sleep button: ui/btn_sleep.png and btn_sleep_pressed.png 117x24, 9-slice L/R 12, T/B 3, no text on image (code overlays 「睡觉」).
+- Note: r7 currently uses recycle_station.png for home_1; replace with the home_lv tier scenes.
+Backgrounds/overlays in bg subpackage; small UI pieces may go in main only if main package stays < 4096KB (estimated ~4018KB now) — otherwise put them in a subpackage too. Remove now-unused old assets from the build if safe.

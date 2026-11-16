@@ -1,0 +1,31 @@
+续 followup54，此为 followup55。福田 merged 注入专项通过结论保留，不要重跑或改写。请立即对下面两张全新截图做官方 read_image，不要用 window_3461_2354.png 或更旧图代替。不得伪造 READY，不得降低验收标准。注入专项不是真实触摸/全流程。不要再要求用户普通编译，不要建议再 open。
+
+本轮事实（Asia/Shanghai / CST）：
+- 已按你的 v3 方案原样提取并语法检查（python3 compile / node --check 均 0），dx 两中心 /2，collect 只在 map_marker_+CASE 内取 badge，并校验 dailySpecial.locationId===CASE。
+- 工具：/workspace/ly15_r40_layout_probe_tools_20261117_0000/ 与 Mac Documents 同名目录，hash 一致。
+  layout_probe_driver_v3.js 16016B sha256 066a0ff014938f7ffe0174d04a2ea5b52241c0be99785ed783b0be2117d4a0b1
+- 仅对现有东门 apply_layout_probe_v3.py --approved --case-id dongmen，APPLY_EXIT=0，时间 2026-11-17 00:02:14 CST。从密封原 game.js 重组，不叠加。未改福田（game.js 仍 5885befa193132c14c2705cafb95a9666f652dbe33aacaa5283aa8e81f1f4b94）。
+- 新备份：/Users/[REDACTED]/Documents/ly15_r40_layout_probe_v3_backup_dongmen_20261117_0000/
+  game.js.previous_injection 仍为 17994B / ee8a2237cc98e620b9546e86588a5087eec6037028a60ac532f3c62886ecbadf
+  备份 v2 driver 仍为 15290B / 3e3f761bbb9608450b5913d37dec7cc1e0c2be26933cb2beb714b83bc1e3b508
+- 当前东门 game.js 18720B sha256 adbbdb8a6a876092a0e590bde11388ca8ed5c180a2f1b4848741629e8e9a950b
+  新 __ly15_layout_probe_driver_v3.js 16016B sha256 066a0ff014938f7ffe0174d04a2ea5b52241c0be99785ed783b0be2117d4a0b1
+  旧 v2 driver 文件仍在且未改。密封原 loader 未改 32a997ce...
+- apply_manifest box：/workspace/ly15_r40_layout_probe_v3_apply_manifest_dongmen_20261117_0000.json
+- 按已核命令只 open 一次：cli open --project …/dongmen，OPEN_EXIT=0，时间 2026-11-17 00:02:22 CST。未点击 GUI，未连接 CLI 打印的 127.0.0.1:11347，未改安全设置。open 耗时约 2 秒。一次有界约 47 秒后，00:03:18 CST 重新枚举：窗口集合与 23:54 相同，仍是 3461 与 3031（标题均 lingyuan15）以及 2909 wechatgame，**没有出现新的窗口 ID**。因此必须考虑本次 open 可能只是复用了已打开的旧东门窗口，不能预先当成已重置运行时；请根据新图判断。2909 未截。标题无法区分，故只新截 3461 与 3031 两个最少候选。
+
+全新图（screencapture -x -l，exit 0，非空，未覆盖旧件）：
+- Mac：/Users/[REDACTED]/Documents/ly15_r40_layout_probe_v3_shots_20261117_0003/window_3461_0003.png | 1086396 bytes | 2026-11-17T00:03:25+0800
+  box：/workspace/ly15-shots/window_3461_0003.png sha256 812cb8363e2c658ec58bd05698b4bf02e60ff79594cfa3b6c20d9ebbf6055fdd
+- Mac：/Users/[REDACTED]/Documents/ly15_r40_layout_probe_v3_shots_20261117_0003/window_3031_0003.png | 838630 bytes | 2026-11-17T00:03:26+0800
+  box：/workspace/ly15-shots/window_3031_0003.png sha256 c2cab76e50099a1b624f29efebf692d7e40421cee84a4aa51d692519b8a1263f
+
+请先认定哪张是现有东门（顶部 dongmen、左树 DONGMEN，现应可见 __ly15_layout_probe_driver_v3.js；不要把福田当东门）。再只根据该东门新图核：
+- 模式、有无信任框；
+- 是否出现 v3 START/READY（probeVersion=r40-layout-ready-v3）；完整可读字段须含 case=dongmen、player=baishizhou、buildTag=r40 d3d65b6、markerName=map_marker_dongmen、dailySpecialLocationId=dongmen，以及 stage/reason/placementSide/badgeBounds/plateBounds/dx/ownIconOverlap/heroOverlap/mergedHeightMatches/belowCentered/logPath/logOk；
+- 限定是否确实在东门（不是大学城）；
+- dx 两中心 /2；below 须 abs(dx)<=0.5 且无碰撞；merged 须安全、文字「限定」完整，非 below 时 dx 不必为 0，不可横滑冒充居中。
+
+只有完整真实 READY 且测量对象绑定东门 marker、dailySpecial.locationId=dongmen、牌确在东门，才能签东门通过。否则如实说明：若无 v3 START/READY 或限定仍在大学城，应判定为 open 复用旧运行态或运行时未绑定 v3，不能当通过，也不要再要求同一操作（不再 open、不再普通编译）。若有信任框，给出精确窗口识别与唯一用户动作。证据不全不要冒签。
+
+尽快给简明可行动结果。

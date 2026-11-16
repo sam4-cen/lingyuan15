@@ -1,0 +1,4 @@
+Round 11 fix for /workspace/lingyuan15. Run tests + tsc, commit.
+Floor loot overlap bug (see /workspace/ly15-shots/r10_BUG_overlap.md): when the floor goes from 4 items (128px style) to 5+ items after another dig, dig does floor.push(...items); new nodes are created with the new floorStyle, but old nodes are not rebuilt (plate stays 130px). Only layoutFloor() is called, so adjacent plates overlap (gap -28px).
+Fix: whenever floor items are added/removed and the computed floorStyle changes (or simply after every spawn), call renderFloor() to rebuild ALL floor nodes with the current style, instead of only layoutFloor(). Alternatively make layoutFloor detect a style change and delegate to renderFloor. Ensure no overlap for 1..max floor items, keep animations for newly revealed items working, and keep the isValid guards from r10. Add a unit test for the layout/style selection if feasible.
+Report the fix and the commit hash.

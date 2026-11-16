@@ -1,0 +1,33 @@
+续 followup52，此为 followup53。福田 merged 注入专项通过结论保留，不要重跑、不要改写。不要再循环「无日志 → 叫编译 → 拍图」。用户 22:31 已做过一次东门普通编译，本轮不再要求编译、复制日志、猜按钮、open/刷新/新建 case，也不要改游戏源码/密封 build/配置/AppID/基础库/玩法，不要碰内部端口或 Library/沙盒路径。
+
+新事实（不要再当黑屏）：
+- 最新东门图是 window_3461_2354.png（不要用 2222 当最新结果）。你已在 followup52 实际读过：现有东门窗口（顶部 dongmen、左树 DONGMEN、含 __ly15_layout_probe_driver_v2.js），小游戏模式，无信任框；地图已到第 7 天，体力/饱腹 100/100；红色「限定」牌在大学城名牌左侧，不在东门名牌旁；Console 区域全空，无 LY15_PROBE START/READY/FAIL/LOG_PATH。
+- 这只说明「东门测试状态是否真正按 case=dongmen 布置」仍未证。不得因为地图有第 7 天就宣称 probe 已执行。也不得把「限定在大学城」直接写成东门布局失败。
+
+本轮目标：集中调查这一具体不一致。请你做全部代码分析与看图，不要让协调者自行定根因。入口注入链你已在 followup51 核过（密封原 game.js + newline + prelude + layout_probe_driver_v2.js；两 case 唯一预期差异是 __LY15_PROBE_CASE__ 为 dongmen/futian_cbd；driver hash 相同）。不要再无差别重读那些已核文件。本轮只补并阅读当时缺失或未读全的相关证据：
+
+必须实际阅读：
+1) 测试 driver 全文：/workspace/ly15_r40_layout_probe_tools_20261116_2210/layout_probe_driver_v2.js
+   sha256 3e3f761bbb9608450b5913d37dec7cc1e0c2be26933cb2beb714b83bc1e3b508
+   （注意：followup51 曾误在 compare 目录找该文件，当时目录里没有副本；请以本路径为准读全文。）
+2) 东门 case 身份：/workspace/ly15_r40_dongmen_startup_compare_20261116_2224/dongmen.case.json
+   sha256 bccf0254151bd0ee8b73294659111ca9f457a4c60259a0da24109b078f612fb4
+   以及已注入 prelude 所在 /workspace/ly15_r40_dongmen_startup_compare_20261116_2224/dongmen.game.js 中的 prelude 段即可，不必再全文对比。
+3) 游戏地点 id 与状态布置相关源码（只读，不要改）：
+   /workspace/lingyuan15/cocos/assets/scripts/core/config.ts（其中可见 id: 'dongmen' name: '东门'；id: 'university_town' name: '大学城'；以及 baishizhou / futian_cbd 等）
+   /workspace/lingyuan15/src/core/config.ts（若与 cocos 副本有关则核对）
+   /workspace/lingyuan15/cocos/assets/scripts/core/game.ts
+   /workspace/lingyuan15/cocos/assets/scripts/GameRoot.ts
+   以及 driver 实际调用的布置路径（acceptFortune / startGame / 地点切换 / 限定牌刷新）所落到的函数。
+4) 如需对照，可再看已有 2354 图 /workspace/ly15-shots/window_3461_2354.png
+   sha256 1f57719694607af20ff66949d2db76a8b6579d260bfb5f79de67f8dffe210c40
+   不要要求再截同一状态。
+
+请明确回答（区分已证与未证，不要猜测当根因）：
+A. case=dongmen / 地点「东门」是否为游戏内真实地点 id（例如 dongmen）？大学城的真实 id 是什么？player=baishizhou 在布置流程里是玩家还是地点？
+B. 现有 v2 driver 在已批准 prelude（CASE=dongmen, PLAYER=baishizhou, BUILD_TAG=r40 d3d65b6）下，是否有任何确定路径会把状态布置到大学城，或布置到东门后又被后续状态覆盖？若代码里根本没有把 case 绑到当前地点/限定牌所在地，也请写明这是确定缺陷还是未证。
+C. 公开编译根路径（已 open 的现有东门 case 目录及其 game.js）是否与已注入文件对应；若对应，则「Console 全空 + 地图第7天 + 限定在大学城」不能再用「没编到注入文件」来解释，除非你从已有证据证明编译根不一致。
+D. 若发现确切的测试脚本/取证方式缺陷（非猜测），给出完整可应用的最小修正（仅测试工具，针对现有东门；核当前东门 game.js ee8a2237cc98e620b9546e86588a5087eec6037028a60ac532f3c62886ecbadf 与密封 32a997ceb72b71efbc26553d820d1a2de26115a5b00ac48917351ca5ab68c5a3；全新备份目录；从密封原 game.js 重组，不叠加）。协调者只会原样执行一次；若会自动刷新，只一次有界等待后取唯一新证。不要无根据反复改入口。
+E. 若在现有限制内没有可执行办法：不要笼统写「无日志」。请写出具体缺口，以及需要父方一次处理的哪一类最小新增许可/能力（例如：何种只读取证能力、或是否允许某一种已有窗口内的单一 GUI 动作——但用户已做过普通编译，不要再要同一种编译）。禁止建议开端口、扫 Library、改安全设置。
+
+尽快给简明、可行动、已证/未证分界清楚的结论。不要改仓库游戏源码。

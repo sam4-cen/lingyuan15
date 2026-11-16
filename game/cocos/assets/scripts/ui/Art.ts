@@ -16,7 +16,12 @@ import {
   AssetManager,
 } from 'cc';
 import { ART_ALIAS, ICON_MAP } from './ArtMap';
+import { bgImageCandidates, bgSpriteFrameCandidates } from './BgAssetPath';
 import { uiNode } from './UI';
+import { PixelFont, PIXEL_INK_COLOR, PixelFontBackground } from './PixelFont';
+import { buttonMinTouchHeight, buttonPaddingX, buttonPaddingY, lineHeightForFontSize, measurePixelTextWidth, pxFont, pxSpacing } from './PixelFontMetrics';
+import { fitCardText } from './CardTextLayout';
+import { computeSleepTextLayout, SleepSourceRect } from './SleepButtonLayout';
 
 const { ccclass } = _decorator;
 
@@ -132,6 +137,7 @@ export class Art {
   private static _bgLoaded: boolean = false;
   private static _resFramesCache: Map<string, SpriteFrame[]> = new Map();
   private static _bgFramesCache: Map<string, SpriteFrame> = new Map();
+  private static _bgSeriesCache: Map<string, SpriteFrame[]> = new Map();
   private static _missing: Set<string> = new Set();
   private static _bgWaiters: { name: string; node: Node }[] = [];
 
@@ -168,8 +174,8 @@ export class Art {
   public static frames(name: string): SpriteFrame[] {
     if (!name) return [];
 
-    // icon_<itemId>
-    if (name.startsWith('icon_')) {
+    // icon_<itemId>（若同名 alias 已登记，例如 r9 的 icon_lock_16，则走下面的 alias 分支）
+    if (!ART_ALIAS[name] && name.startsWith('icon_')) {
       const itemId = name.slice(5);
       const iconName = ICON_MAP[itemId];
       if (!iconName) {
@@ -183,7 +189,7 @@ export class Art {
       return [];
     }
 
-    // bg_<locationId>
+    // bg_<locationId> 等单张背景
     if (name.startsWith('bg_')) {
       const alias = ART_ALIAS[name];
       if (!alias || alias.src !== 'bg') {
@@ -196,12 +202,20 @@ export class Art {
       return [];
     }
 
-    // 普通逻辑名
+    // 普通逻辑名（res / bg，bg 可能是单张或序列帧）
     const alias = ART_ALIAS[name];
-    if (alias && alias.src === 'res') {
-      const list = Art._resFramesCache.get(alias.path);
-      if (list && list.length > 0) return list;
-      if (Art._preloaded) Art.recordMissing(name);
+    if (alias) {
+      if (alias.src === 'res') {
+        const list = Art._resFramesCache.get(alias.path);
+        if (list && list.length > 0) return list;
+        if (Art._preloaded) Art.recordMissing(name);
+        return [];
+      }
+      const series = Art._bgSeriesCache.get(alias.path);
+      if (series && series.length > 0) return series;
+      const single = Art._bgFramesCache.get(alias.path);
+      if (single) return [single];
+      if (Art._bgLoaded) Art.recordMissing(name);
       return [];
     }
 
@@ -210,6 +224,12 @@ export class Art {
     if (legacy && legacy.length > 0) return legacy;
     if (Art._preloaded) Art.recordMissing(name);
     return [];
+  }
+
+  /** 取某个逻辑名的第一帧（没有素材返回 null）。 */
+  public static firstFrame(name: string): SpriteFrame | null {
+    const frames = Art.frames(name);
+    return frames.length > 0 ? frames[0] : null;
   }
 
   /**
@@ -270,7 +290,7 @@ export class Art {
    * 底图为卡片素材，上面挂 content 子节点。
    */
   public static makeCard(
-    kind: 'card_day' | 'card_fail' | 'card_cert',
+    kind: 'card_fail' | 'card_cert',
     parentH: number,
   ): Node {
     const cardH = Math.max(100, parentH * 0.7);
@@ -284,11 +304,27 @@ export class Art {
       Art.applySpriteToNode(node, kind, frames);
     } else {
       const cardLabels: Record<string, string> = {
-        card_day: '日结算',
         card_fail: '倒霉卡',
         card_cert: '通关证书',
       };
-      Art.drawPlaceholder(node, cardW, cardH, new Color(220, 220, 220, 255), cardLabels[kind] ?? '卡片');
+      // 占位标题贴在卡片顶部，不能像普通占位那样居中压住正文/「总收入」行。
+      Art.drawPlaceholder(node, cardW, cardH, new Color(220, 220, 220, 255));
+      const titleNode = uiNode('card_fallback_title');
+      const titleUt = titleNode.addComponent(UITransform);
+      titleUt.setContentSize(cardW, 48);
+      titleNode.setPosition(0, cardH / 2 - 46, 0);
+      const titleLabel = titleNode.addComponent(Label);
+      titleLabel.string = cardLabels[kind] ?? '卡片';
+      const titleSize = pxFont(18);
+      titleLabel.fontSize = titleSize;
+      titleLabel.lineHeight = titleSize;
+      titleLabel.horizontalAlign = Label.HorizontalAlign.CENTER;
+      titleLabel.verticalAlign = Label.VerticalAlign.CENTER;
+      titleLabel.overflow = Label.Overflow.CLAMP;
+      titleLabel.enableWrapText = false;
+      titleLabel.color = PIXEL_INK_COLOR.clone();
+      PixelFont.apply(titleLabel, { color: PIXEL_INK_COLOR.clone(), bg: 'light' });
+      titleNode.setParent(node);
     }
 
     // 文字内容子节点
@@ -300,6 +336,25 @@ export class Art {
     return node;
   }
 
+  /**
+   * r26：所有按钮文字统一回到正文 k 档，并按「文字 + 四边内边距」定尺寸。
+   * 传进来的 w/h 只作为最小值，布局不会因为按钮文字变长而被裁掉。
+   */
+  public static buttonMetrics(
+    text: string,
+    minW: number = 0,
+    minH: number = 0,
+  ): { width: number; height: number; fontSize: number; lineHeight: number; padX: number; padY: number } {
+    const fontSize = pxFont(12);
+    const lineHeight = lineHeightForFontSize(fontSize);
+    const padX = buttonPaddingX();
+    const padY = buttonPaddingY();
+    const textW = measurePixelTextWidth(text, fontSize);
+    const width = Math.ceil(Math.max(1, minW, textW + padX * 2));
+    const height = Math.ceil(Math.max(1, minH, lineHeight + padY * 2, buttonMinTouchHeight()));
+    return { width, height, fontSize, lineHeight, padX, padY };
+  }
+
   /** 创建九宫格按钮，按下时切换素材。无素材时退化为色块按钮。 */
   public static makeButton(
     text: string,
@@ -307,7 +362,11 @@ export class Art {
     h: number,
     onClick: () => void,
     fontSize?: number,
+    bg: PixelFontBackground = 'light',
   ): Node {
+    const metrics = Art.buttonMetrics(text, w, h);
+    w = metrics.width;
+    h = metrics.height;
     const node = uiNode('button');
     const ut = node.addComponent(UITransform);
     ut.setContentSize(w, h);
@@ -344,14 +403,28 @@ export class Art {
     const lUt = labelNode.addComponent(UITransform);
     lUt.setContentSize(w, h);
     const lb = labelNode.addComponent(Label);
-    lb.string = text;
-    lb.fontSize = fontSize ?? Math.max(14, Math.min(28, Math.floor(Math.min(w, h) * 0.5)));
-    lb.lineHeight = lb.fontSize + 4;
+    const buttonFit = fitCardText(text, {
+      maxWidth: Math.max(1, w - metrics.padX * 2),
+      maxHeight: Math.max(1, h - metrics.padY * 2),
+      fontSize: metrics.fontSize,
+      minFontSize: metrics.fontSize,
+      lineGap: 0,
+    });
+    lb.string = buttonFit.text;
+    lb.fontSize = buttonFit.fontSize;
+    lb.lineHeight = buttonFit.lineHeight;
     lb.horizontalAlign = Label.HorizontalAlign.CENTER;
     lb.verticalAlign = Label.VerticalAlign.CENTER;
-    lb.overflow = Label.Overflow.SHRINK;
-    lb.enableWrapText = true;
-    lb.color = new Color(245, 245, 245, 255);
+    lb.overflow = Label.Overflow.CLAMP;
+    lb.enableWrapText = false;
+    const labelColor = bg === 'dark' ? new Color(255, 248, 230, 255) : PIXEL_INK_COLOR.clone();
+    lb.color = labelColor;
+    PixelFont.apply(lb, {
+      size: buttonFit.fontSize,
+      lineHeight: buttonFit.lineHeight,
+      color: labelColor,
+      bg: bg,
+    });
     labelNode.setParent(node);
     labelNode.setPosition(0, 0, 0);
 
@@ -359,6 +432,131 @@ export class Art {
       onClick();
     });
 
+    return node;
+  }
+
+  /**
+   * 用指定美术（如 btn_sleep / btn_sleep_pressed）创建九宫格按钮。
+   * 素材缺失时退化成 makeButton 的普通按钮，保证代码先能跑。
+   *
+   * labelBelow=true 时按钮根节点会向下加高：美术保持原始高度贴在上方，
+   * 文字单独放在美术下方，避免「睡觉」压在月亮和床之间。按下态共用同一套排版。
+   *
+   * r29：textRect（源像素）用于新版 btn_sleep：文字放在按钮图内部右侧、
+   * 不与左侧月亮重叠；按下态文字跟随下移 2 源像素。
+   */
+  public static makeSpriteButton(
+    artName: string,
+    pressedArtName: string,
+    text: string,
+    w: number,
+    h: number,
+    onClick: () => void,
+    fontSize?: number,
+    options: { labelBelow?: boolean; textRect?: SleepSourceRect } = {},
+  ): Node {
+    const normalFrames = Art.frames(artName);
+    const pressedFrames = Art.frames(pressedArtName);
+    if (normalFrames.length === 0) {
+      return Art.makeButton(text, w, h, onClick, fontSize);
+    }
+
+    const metrics = Art.buttonMetrics(text, w, h);
+    const artW = metrics.width;
+    const artH = metrics.height;
+    const labelBelow = options.labelBelow === true;
+    const textRect = options.textRect;
+    const labelH = labelBelow ? Math.ceil(lineHeightForFontSize(metrics.fontSize)) : 0;
+    const labelGap = pxSpacing(2);
+    const rootW = artW;
+    const rootH = labelBelow ? artH + labelH + labelGap : artH;
+
+    const node = uiNode('button');
+    const ut = node.addComponent(UITransform);
+    ut.setContentSize(rootW, rootH);
+
+    // 文字在下方 / 按钮内文字区：美术放进子节点。r29 新版 btn_sleep 是
+    // 117×24 的整图（月亮在左），先按源尺寸建 9 宫格再整体缩放到目标尺寸，
+    // 这样月亮和 BTN_SLEEP_TEXT_RECT 使用同一套源像素坐标，不会各缩各的。
+    let artNode: Node = node;
+    if (labelBelow || textRect) {
+      artNode = uiNode('button_art');
+      artNode.parent = node;
+      const artUt = artNode.addComponent(UITransform);
+      const srcSize = normalFrames[0]?.originalSize;
+      const srcW = Math.max(1, srcSize?.width ?? artW);
+      const srcH = Math.max(1, srcSize?.height ?? artH);
+      artUt.setContentSize(srcW, srcH);
+      artNode.setScale(artW / srcW, artH / srcH, 1);
+      artNode.setPosition(0, (rootH - artH) / 2, 0);
+    }
+    Art.applySpriteToNode(artNode, artName, normalFrames);
+    const sprite = artNode.getComponent(Sprite);
+    const alias = ART_ALIAS[artName];
+    if (sprite && alias?.insets) sprite.type = Sprite.Type.SLICED;
+
+    // 点击热区用根节点（含文字区域），按下态换图作用在美术子节点/根节点上。
+    const btn = node.addComponent(Button);
+    btn.target = artNode;
+    if (pressedFrames.length > 0) {
+      btn.transition = Button.Transition.SPRITE;
+      btn.normalSprite = normalFrames[0];
+      btn.pressedSprite = pressedFrames[0];
+    } else {
+      btn.transition = Button.Transition.NONE;
+    }
+
+    const textBox = textRect ? computeSleepTextLayout(artW, artH, textRect) : null;
+    const labelNode = uiNode('label');
+    const lUt = labelNode.addComponent(UITransform);
+    lUt.setContentSize(
+      textBox ? textBox.width : rootW,
+      textBox ? textBox.height : labelBelow ? labelH : rootH,
+    );
+    const lb = labelNode.addComponent(Label);
+    const buttonFit = fitCardText(text, {
+      maxWidth: Math.max(1, textBox ? textBox.width : rootW - metrics.padX * 2),
+      maxHeight: Math.max(1, textBox ? textBox.height : labelBelow ? labelH : rootH - metrics.padY * 2),
+      fontSize: metrics.fontSize,
+      minFontSize: metrics.fontSize,
+      lineGap: 0,
+    });
+    lb.string = buttonFit.text;
+    lb.fontSize = buttonFit.fontSize;
+    lb.lineHeight = buttonFit.lineHeight;
+    lb.horizontalAlign = Label.HorizontalAlign.CENTER;
+    lb.verticalAlign = Label.VerticalAlign.CENTER;
+    lb.overflow = Label.Overflow.CLAMP;
+    lb.enableWrapText = false;
+    const labelColor = new Color(255, 248, 230, 255);
+    lb.color = labelColor;
+    PixelFont.apply(lb, {
+      size: buttonFit.fontSize,
+      lineHeight: buttonFit.lineHeight,
+      color: labelColor,
+      bg: 'dark',
+    });
+    labelNode.setParent(node);
+    const normalX = textBox ? textBox.centerX : 0;
+    const normalY = textBox
+      ? textBox.centerY
+      : labelBelow
+        ? -rootH / 2 + labelH / 2 + labelGap / 2
+        : 0;
+    labelNode.setPosition(normalX, normalY, 0);
+
+    if (textBox) {
+      // 按下态：文字跟着按钮图下移 2 源像素（不影响普通按钮）。
+      const press = () => labelNode.setPosition(normalX + textBox.pressedOffsetX, normalY + textBox.pressedOffsetY, 0);
+      const release = () => labelNode.setPosition(normalX, normalY, 0);
+      node.on(Node.EventType.TOUCH_START, press);
+      node.on(Node.EventType.TOUCH_END, release);
+      node.on(Node.EventType.TOUCH_CANCEL, release);
+    }
+
+    node.on(Button.EventType.CLICK, () => {
+      onClick();
+    });
     return node;
   }
 
@@ -440,16 +638,30 @@ export class Art {
       const lut = ln.addComponent(UITransform);
       lut.setContentSize(width, height);
       const lb = ln.addComponent(Label);
-      lb.string = label;
-      const fs = Math.max(12, Math.min(30, Math.floor(Math.min(width, height) * 0.52)));
-      lb.fontSize = fs;
-      lb.lineHeight = fs + 4;
+      const fs = pxFont(12);
+      const phFit = fitCardText(label, {
+        maxWidth: Math.max(1, width - pxFont(4)),
+        maxHeight: Math.max(1, height - pxFont(4)),
+        fontSize: fs,
+        minFontSize: fs,
+        lineGap: 0,
+      });
+      lb.string = phFit.text;
+      lb.fontSize = phFit.fontSize;
+      lb.lineHeight = phFit.lineHeight;
       lb.horizontalAlign = Label.HorizontalAlign.CENTER;
       lb.verticalAlign = Label.VerticalAlign.CENTER;
-      lb.overflow = Label.Overflow.SHRINK;
+      lb.overflow = Label.Overflow.CLAMP;
       lb.enableWrapText = false;
       const lum = 0.299 * base.r + 0.587 * base.g + 0.114 * base.b;
-      lb.color = lum > 150 ? new Color(25, 25, 28, 255) : new Color(248, 248, 248, 255);
+      const color = lum > 150 ? new Color(25, 25, 28, 255) : new Color(248, 248, 248, 255);
+      lb.color = color;
+      PixelFont.apply(lb, {
+        size: phFit.fontSize,
+        lineHeight: phFit.lineHeight,
+        color,
+        bg: lum > 150 ? 'light' : 'dark',
+      });
       ln.setParent(node);
       ln.setPosition(0, 0, 0);
     }
@@ -534,9 +746,9 @@ export class Art {
         // 目录/文件 或 子目录/文件（如 icons/plastic_bottle）
         const dirName = relParts[0];
         file = relParts[1];
-        if (dirName === 'icons') {
-          // 图标单独作为 key：icons/<filename>
-          name = `icons/${file}`;
+        if (dirName === 'icons' || dirName === 'share') {
+          // 这些目录下每张图是独立资源：<dir>/<filename>
+          name = `${dirName}/${file}`;
         } else {
           name = dirName;
         }
@@ -587,16 +799,25 @@ export class Art {
     });
   }
 
+  /** 给单帧应用九宫格 insets。 */
+  private static applyInsets(sf: SpriteFrame, insets: [number, number, number, number]): void {
+    const [l, r, t, b] = insets;
+    sf.insetLeft = l;
+    sf.insetRight = r;
+    sf.insetTop = t;
+    sf.insetBottom = b;
+  }
+
   /** 设置纹理过滤与九宫格 insets。 */
   private static applyFiltersAndInsets(): void {
     // 设置所有 res SpriteFrame 的 filter
     Art._resFramesCache.forEach((frames: SpriteFrame[]) => {
       frames.forEach((sf: SpriteFrame) => {
         if (sf.texture) {
-          (sf.texture as Texture2D).setFilters(
-            Texture2D.Filter.NEAREST,
-            Texture2D.Filter.NEAREST,
-          );
+          const tex = sf.texture as Texture2D;
+          tex.setFilters(Texture2D.Filter.NEAREST, Texture2D.Filter.NEAREST);
+          tex.setMipFilter(Texture2D.Filter.NONE);
+          (tex as any).premultiplyAlpha = false;
         }
       });
     });
@@ -606,17 +827,11 @@ export class Art {
       if (alias.src !== 'res' || !alias.insets) continue;
       const frames = Art._resFramesCache.get(alias.path);
       if (!frames || frames.length === 0) continue;
-      const [l, r, t, b] = alias.insets;
-      frames.forEach((sf: SpriteFrame) => {
-        sf.insetLeft = l;
-        sf.insetRight = r;
-        sf.insetTop = t;
-        sf.insetBottom = b;
-      });
+      frames.forEach((sf: SpriteFrame) => Art.applyInsets(sf, alias.insets!));
     }
   }
 
-  /** 加载背景 bundle 并缓存所有背景。 */
+  /** 加载背景 bundle 并缓存所有背景 / 地图图标 / 地点 NPC 序列帧。 */
   private static async loadBackgrounds(): Promise<void> {
     return new Promise<void>((resolve) => {
       assetManager.loadBundle('bg', (err: Error | null, bundle: AssetManager.Bundle | null) => {
@@ -639,16 +854,7 @@ export class Art {
           return;
         }
 
-        const finishOne = (path: string, sf: SpriteFrame | null) => {
-          if (sf) {
-            if (sf.texture) {
-              (sf.texture as Texture2D).setFilters(
-                Texture2D.Filter.NEAREST,
-                Texture2D.Filter.NEAREST,
-              );
-            }
-            Art._bgFramesCache.set(path, sf);
-          }
+        const doneOne = () => {
           remaining--;
           if (remaining <= 0) {
             Art._bgLoaded = true;
@@ -657,15 +863,40 @@ export class Art {
           }
         };
 
-        const loadBackground = (path: string) => {
-          const loadImageAsSpriteFrame = () => {
+        const finishSingle = (
+          name: string,
+          path: string,
+          sf: SpriteFrame | null,
+        ) => {
+          if (sf) {
+            if (sf.texture) {
+              const tex = sf.texture as Texture2D;
+              tex.setFilters(Texture2D.Filter.NEAREST, Texture2D.Filter.NEAREST);
+              tex.setMipFilter(Texture2D.Filter.NONE);
+              (tex as any).premultiplyAlpha = false;
+            }
+            // 九宫格素材搬到 bg 分包后，insets 也要在分包加载完成时补上。
+            const alias = ART_ALIAS[name];
+            if (alias?.insets) Art.applyInsets(sf, alias.insets);
+            Art._bgFramesCache.set(path, sf);
+          }
+          doneOne();
+        };
+
+        const loadImageAsSpriteFrame = (bundleRef: AssetManager.Bundle, path: string, cb: (sf: SpriteFrame | null) => void) => {
+          const imagePaths = bgImageCandidates(path);
+          const tryImage = (index: number) => {
+            if (index >= imagePaths.length) {
+              cb(null);
+              return;
+            }
             try {
-              bundle.load(
-                path,
+              bundleRef.load(
+                imagePaths[index],
                 ImageAsset,
                 (imageErr: Error | null, image: ImageAsset | null) => {
                   if (imageErr || !image) {
-                    finishOne(path, null);
+                    tryImage(index + 1);
                     return;
                   }
                   let sf: SpriteFrame | null = null;
@@ -674,33 +905,76 @@ export class Art {
                   } catch (e) {
                     sf = null;
                   }
-                  finishOne(path, sf);
+                  cb(sf);
                 },
               );
             } catch (e) {
-              finishOne(path, null);
+              tryImage(index + 1);
             }
           };
-
-          try {
-            bundle.load(
-              `${path}/spriteFrame`,
-              SpriteFrame,
-              (sfErr: Error | null, sf: SpriteFrame | null) => {
-                if (sfErr || !sf) {
-                  loadImageAsSpriteFrame();
-                  return;
-                }
-                finishOne(path, sf);
-              },
-            );
-          } catch (e) {
-            loadImageAsSpriteFrame();
-          }
+          tryImage(0);
         };
 
-        for (const [, alias] of bgAliases) {
-          loadBackground(alias.path);
+        const loadOne = (bundleRef: AssetManager.Bundle, path: string, cb: (sf: SpriteFrame | null) => void) => {
+          const spriteFramePaths = bgSpriteFrameCandidates(path);
+          const trySpriteFrame = (index: number) => {
+            if (index >= spriteFramePaths.length) {
+              loadImageAsSpriteFrame(bundleRef, path, cb);
+              return;
+            }
+            try {
+              bundleRef.load(
+                spriteFramePaths[index],
+                SpriteFrame,
+                (sfErr: Error | null, sf: SpriteFrame | null) => {
+                  if (sfErr || !sf) {
+                    trySpriteFrame(index + 1);
+                    return;
+                  }
+                  cb(sf);
+                },
+              );
+            } catch (e) {
+              trySpriteFrame(index + 1);
+            }
+          };
+          trySpriteFrame(0);
+        };
+
+        for (const [name, alias] of bgAliases) {
+          const path = alias.path;
+          const count = alias.frames ?? 1;
+          if (count <= 1) {
+            loadOne(bundle, path, (sf) => finishSingle(name, path, sf));
+            continue;
+          }
+          const frames: SpriteFrame[] = [];
+          let left = count;
+          const finishFrame = () => {
+            left--;
+            if (left > 0) return;
+            const valid = frames.filter((f): f is SpriteFrame => !!f);
+            if (valid.length > 0) {
+              for (const sf of valid) {
+                if (sf.texture) {
+                  const tex = sf.texture as Texture2D;
+                  tex.setFilters(Texture2D.Filter.NEAREST, Texture2D.Filter.NEAREST);
+                  tex.setMipFilter(Texture2D.Filter.NONE);
+                  (tex as any).premultiplyAlpha = false;
+                }
+                if (alias.insets) Art.applyInsets(sf, alias.insets);
+              }
+              Art._bgSeriesCache.set(path, valid);
+            }
+            doneOne();
+          };
+          for (let i = 0; i < count; i++) {
+            frames.push(null as unknown as SpriteFrame);
+            loadOne(bundle, `${path}/${i}`, (sf) => {
+              frames[i] = sf as SpriteFrame;
+              finishFrame();
+            });
+          }
         }
       });
     });

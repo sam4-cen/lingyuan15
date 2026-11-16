@@ -1,0 +1,11 @@
+请立即基于既有 /workspace/ly15_probe_tools_r40_d3d65b6_20261116 生成全新独立工具版本，只写草案文本，不要自己写入仓库、不要覆盖旧工具、不要操作 Mac、不要执行构建。
+
+新增执行报告（测试转述，不代替文件核验）：Mac 新独立构建已产出 /Users/[REDACTED]/Documents/ly15_r40_buildroot_d3d65b6_20261116/wechatgame，含 game.js、game.json、project.config.json；烘焙 BUILD_TAG=r40 d3d65b6；无 wechatgame-001；源码两 hash 正确。构建日志 Task Finished 约 3 分 30 秒，但进程收尾 exit 36、workers SIGTERM，记录不当纯 exit 0 成功。新预览 appid 为 wx6ac3f5090a6b99c5（与历史不同）；preview 成功不作布局证据。原项目旧 build 与旧 Documents/ly15_info 未改。旧 seal 草案因 project.private.config.json 不存在报 BUILD_FILE_MISSING，尚未生成可用 info/manifest/case，不能声称已密封。
+
+必须修正：project.private.config.json 仅当实际存在时才核 hash；不预设为必需。缺失时记录显式 absent，不从旧包复制、不创建该配置、不动原件。新源码已写过 Version，不再要求覆盖 Version。seal 新 build 需核提交/tag/两源码实际 hash/必要入口与资产实际 hash；ly15_info.json 与 manifest 如不存在才新写，若已存在则核验或停止，不覆盖部分失败产物。针对新实际 build 根给出精确 seal/prepare/open 命令。新 case 根必须用全新 _v2 目录，不覆盖旧 case。地点：福田CBD/东门；player=baishizhou；视口 390x844。
+
+探针延续已实测 root 路径，输出完整可读 READY，至少包含：case、player、probeVersion、build tag、placement side、badge 与 plate bounds、dx、stage、reason、logPath。merged/below 分判，不猜 CSS 换算。无 READY 时可取故障 Console，仅非成功布局图。不要改游戏源码、提交、AppID、原配置或旧工具。
+
+若需 Mac 真实文件内容或新 hash 而当前无资料，给出准确最小读取清单，或由脚本运行时记录并验证；不能编造 hash，也不能把自报 commit 当全部源码证明。
+
+交付完整文件代码块（无省略号/伪代码），文件名固定：r40_prebuild_safe.py、probe_prepare.py、probe_driver.js、RUNBOOK.md，以及必要 manifest 说明。建议 box 提取目录 /workspace/ly15_probe_tools_r40_d3d65b6_20261116_v2（必须原先不存在，保留旧目录）。Mac 工具目录建议 /Users/[REDACTED]/Documents/ly15_probe_tools_r40_d3d65b6_20261116_v2，全新候选根建议 /Users/[REDACTED]/Documents/ly15_probe_cases_r40_d3d65b6_20261116_v2。指出未实测、未执行；不签真实触摸/全流程。协调者只逐字提取草案，本轮不执行、不 CopyFromBox、不改 git。

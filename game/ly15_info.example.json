@@ -1,0 +1,12 @@
+{
+  "version": "r38",
+  "tag": "r38 <HEAD 短 hash>",
+  "commit": "<HEAD 短 hash>",
+  "mainPackageBytes": 0,
+  "mainPackageKB": 0,
+  "bgSubpackageBytes": 0,
+  "totalBytes": 0,
+  "builtAt": "构建后由 npm run postbuild:info -- <build/wechatgame> 写入",
+  "mainPackageLimitKB": 3950,
+  "withinLimit": true
+}

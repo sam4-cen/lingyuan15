@@ -1,0 +1,68 @@
+diff --git a/cocos/assets/scripts/ui/MapLayout.ts b/cocos/assets/scripts/ui/MapLayout.ts
+index bf71ea4..2c7ea31 100644
+--- a/cocos/assets/scripts/ui/MapLayout.ts
++++ b/cocos/assets/scripts/ui/MapLayout.ts
+@@ -322,20 +322,11 @@ export function computeBadgeUnderPlate(
+   const left = make(plate.left - gap - w, plateCenterY - h / 2, 'left');
+   if (safe(left)) return left;
+ 
+-  // 3) 两侧都不可用 → 名字牌正下方，先水平居中，间距 2px。
+-  // 居中位置被邻居/玩家占住时，在名字牌宽度范围内左右滑动寻找空位；
+-  // 这仍然属于「正下方」这一级，不会跑到上方压住自己的图标。
++  // 3) 两侧都不可用 → 名字牌正下方，必须严格水平居中，间距 2px。
++  // 居中位置被邻居/玩家占住时不再横向滑动；直接进入 merged 兜底。
+   const belowTop = plate.bottom - gap - h;
+   const belowCenter = make(plateCenterX - w / 2, belowTop, 'below');
+   if (safe(belowCenter)) return belowCenter;
+-  const maxSlide = Math.max(0, (plateW - w) / 2);
+-  for (let d = 1; d <= Math.ceil(maxSlide) + 0.001; d++) {
+-    for (const centerX of [plateCenterX + d, plateCenterX - d]) {
+-      if (Math.abs(centerX - plateCenterX) > maxSlide + 0.001) continue;
+-      const candidate = make(centerX - w / 2, belowTop, 'below');
+-      if (safe(candidate)) return candidate;
+-    }
+-  }
+ 
+   // 4) 最终兜底：红牌并进名字牌左端。高度与名字牌一致，不缩小、不隐藏文字。
+   // 先按图标中心重新对齐整块（红段 + 名牌），再夹进地图可视区。
+diff --git a/test/r39.test.ts b/test/r39.test.ts
+index 5de0ea5..79607cc 100644
+--- a/test/r39.test.ts
++++ b/test/r39.test.ts
+@@ -199,6 +199,9 @@ function collectSides(): { sides: Record<string, number>; failures: string[] } {
+           assert.ok(badge.rect.left >= daily.placement.plate.left - 0.001
+             && badge.rect.right <= daily.placement.plate.right + 0.001,
+           `${tag} 下方小牌没有保持在名字牌宽度范围内`);
++          const plateCenterX = (daily.placement.plate.left + daily.placement.plate.right) / 2;
++          assert.ok(Math.abs(badge.centerX - plateCenterX) < 0.001,
++            `${tag} 下方小牌没有水平居中`);
+         } else {
+           const plate = badge.plateRect!;
+           assert.equal(badge.merged, true, `${tag} merged 档没有标记`);
+@@ -255,7 +258,7 @@ test('r39 限定牌：4 尺寸 × 8 地点 × 4 玩家位置全覆盖，始终
+   }
+ });
+ 
+-test('r39 五个失败组合：390/福田CBD、SE/东门、360/东门、360/福田CBD、PM/福田CBD 不压任何障碍', () => {
++test('r39 五个失败组合：390/福田CBD、SE/东门、360/东门、360/福田CBD、PM/福田CBD 下方居中或 merged 兜底', () => {
+   const failed = [
+     { vp: '390x844', loc: 'futian_cbd' },
+     { vp: 'SE 375x667', loc: 'dongmen' },
+@@ -278,10 +281,13 @@ test('r39 五个失败组合：390/福田CBD、SE/东门、360/东门、360/福
+         minClearance: MAP_BADGE_CLEARANCE,
+       });
+       const tag = `${item.vp} 限定@${item.loc} 玩家@baishizhou (${badge.side})`;
+-      assert.notEqual(badge.side, 'merged', `${tag} 五个历史失败组合不应退到合并档`);
+-      for (const blocker of blockers) {
+-        assert.equal(rectsWithinDistance(badge.rect, blocker, MAP_BADGE_CLEARANCE), false,
+-          `${tag} 小牌与障碍物距离不足 2px`);
++      assert.ok(badge.side === 'below' || badge.side === 'merged',
++        `${tag} 应回退到下方或合并档`);
++      if (badge.side !== 'merged') {
++        for (const blocker of blockers) {
++          assert.equal(rectsWithinDistance(badge.rect, blocker, MAP_BADGE_CLEARANCE), false,
++            `${tag} 小牌与障碍物距离不足 2px`);
++        }
+       }
+       assert.ok(inside(badge.rect, env.bounds), `${tag} 小牌超出可视区`);
+     }

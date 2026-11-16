@@ -1,0 +1,39 @@
+Project: /workspace/lingyuan15 (Cocos Creator 3.8.8 WeChat mini-game). HEAD 1cb9e34.
+Full spec (confirmed by owner): /workspace/req_r6_optim.md — read it first. The two legacy bugs in it (createPopFlash null setParent on fail page; 「蛋挞」 line break) were fixed in 9440b5a — just re-verify they are still fixed, don't redo.
+
+Implement:
+
+A. 今日限定 (daily special), days 5-15 only, exactly 1 per day, shown as a popup right after the fortune draw. Pool (define all data + numbers ONLY in src/core/config.ts):
+  - 华强北清仓: electronics-category sell price x2
+  - 城中村拆迁: location 白石洲 (baishizhou) +2 big boxes, patrol x2
+  - 回收商高价收纸箱: cardboard-category sell price x3
+  - 地铁停运: stamina cost of going home x1.5
+  - 夜市开张: food purchase half price (¥10)
+  Selection: good fortune biases to good events, bad fortune biases to bad events, middle fortune = uniform. Deterministic via the game's seeded RNG. Effects must be applied in core logic (src/core) and unit-tested. On the location/map UI add a 「限定」 corner badge on the affected location; still NEVER show box counts.
+
+B. Death page + clear certificate:
+  - Death page: pick a funny death line based on the run's ACTUAL death cause, at least 12 lines total across causes (starvation / stamina exhausted / escorted out by security / etc). Include these examples: 「为了省¥20，倒在了离夜市50米的地方」「背着三台旧显示器走了8公里」「第N次『装作散步』，保安已经认识你了」 (N = real count from the run). Below: days survived, boxes opened, most valuable item of the run (track these stats in core).
+  - Rename the clear certificate to 「深圳生存认证」 and award a title by playstyle, at least 8 titles (e.g. 纸箱之王, 华强北常客, 猫猫的好朋友 …) with deterministic rules from run stats, unit-tested.
+  - Both pages get a 「分享」 button that renders a portrait share image (offscreen canvas/RenderTexture → wx.canvasToTempFilePath / wx.shareAppMessage with imageUrl) containing the page content plus a QR image loaded from resources 'art/share/qr' (create a simple placeholder PNG there if absent; it will be replaced by the real mini-game code). Guard all wx.* calls so it doesn't crash in the editor/browser preview.
+  - Text on both pages: left aligned, auto-wrap, nothing clipped (same approach as the daily settlement fix in 1cb9e34).
+
+C. Location landmarks (Shenzhen). For each of the 8 locations in LOCATIONS add landmark data in config.ts: { landmarkName, line }:
+  - huaqiangbei 华强北: 电子摊/二手手机柜台, 「靓仔，要不要看看？」
+  - baishizhou 白石洲(城中村): 握手楼/晾衣杆, 「后生仔，吃饭未啊？」
+  - window_world 世界之窗地铁站: 共享单车山, 「又迟到了又迟到了」
+  - nanshan_tech 南山科技园: 工牌/外卖柜, 「今晚又要加班」
+  - dongmen 东门: 老街招牌/糖水铺, 「糖水两蚊一碗啊」
+  - futian_cbd 福田CBD: 平安金融中心/写字楼玻璃幕墙, 「电梯要排二十分钟」
+  - sz_bay 深圳湾公园: 海边步道/春笋大厦远景, 「跑步的都比你有钱」
+  - university_town 大学城: 图书馆/自行车棚, 「同学，饭卡借我刷一下？」
+  In the location scene, show the landmark sprite loaded from resources 'art/landmarks/<locationId>' (pixel art PNG, being produced by the art team — if the asset is missing, skip the sprite gracefully without errors) plus the line as a speech bubble when entering the location. Layout must not cover boxes/floor items/HUD.
+
+Constraints: main package < 4MB; landmark sprites go in resources/art/landmarks. Any numbers only in src/core/config.ts. Sync src/core to cocos/assets/scripts/core (identical). Keep all existing isValid guards. Run tests (add tests for A and B logic) and tsc (0 errors), commit, and report each change and the commit hash.
+
+ART DELIVERED (see /workspace/lingyuan_art/README.md):
+- Copy /workspace/lingyuan_art/landmarks/<id>.png (8 files, transparent, varying sizes ~50-206 x 112-192; futian_cbd is only 50px wide) into cocos/assets/resources/art/landmarks/ and display at ORIGINAL aspect ratio (do not stretch to a fixed box).
+- Copy /workspace/lingyuan_art/share/share_death_bg.png and share_cert_bg.png (720x1280) into cocos/assets/resources/art/share/. Use them as share image backgrounds; overlay text + QR in code at these pixel rects (origin top-left):
+  - death (HD version, UPDATED coords): data area x=2 y=998 w=715 h=279 (only days survived, boxes opened, most valuable item here; must not overlap the QR at bottom-right); put the funny death line + title over the dark top area; QR x=589 y=1146 w=98 h=98.
+  - cert (深圳生存认证): title ribbon x=113 y=84 w=494 h=142; data area x=84 y=622 w=552 h=322 but keep text in the top ~60% of it (character art bottom-left); QR x=481 y=1045 w=168 h=150.
+- Art may later be replaced by higher-res files with the same names; don't hardcode pixel sizes of landmarks.
+- Landmark note: sz_bay is a rectangular scene with a 2px dark border (not a transparent cutout) - show as-is. Current sizes: dongmen 131x112, futian_cbd 49x192, sz_bay 155x154, university_town 140x87.

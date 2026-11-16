@@ -4,7 +4,18 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "tsx --test test/*.test.ts",
+    "gen:version": "node scripts/gen-version.mjs",
+    "gen:info": "node scripts/postbuild-info.mjs",
+    "gen:font": "python3 scripts/gen-bmfont.py",
+    "prebuild": "node scripts/prebuild.mjs",
+    "build": "node scripts/prebuild.mjs",
+    "build:release": "node scripts/prebuild.mjs --release",
+    "build:test": "node scripts/prebuild.mjs",
+    "set:device": "node scripts/set-simulator.mjs",
+    "build:wechat": "node scripts/prebuild.mjs && node scripts/set-simulator.mjs",
+    "gen:wordbreak": "node --import tsx scripts/gen-wordbreak.mjs",
+    "postbuild:info": "node scripts/postbuild-info.mjs"
   },
   "keywords": [],
   "author": "",
@@ -14,6 +25,6 @@
     "@cocos/creator-types": "^3.8.8",
     "@types/node": "^26.6.6",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "5.9.2"
   }
 }

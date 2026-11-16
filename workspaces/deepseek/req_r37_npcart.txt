@@ -1,0 +1,7 @@
+你在 /workspace/lingyuan15（Cocos Creator 3.8.8 微信小游戏《老花店》）。在当前 HEAD（r36）基础上只做美术替换：
+ui/ux 重新锐化了 NPC，源文件在 /workspace/lingyuan_art/npc/：npc_kind_auntie_0..3.png、npc_patrol_uncle_0..3.png、npc_wallet_owner_0..2.png（另有 *_strip.png 水平序列帧，可不用）。全部 32×32、硬透明、轮廓 #1a1020、脚底锚点 (16,30)，与新保安规格一致。
+1. 覆盖复制到 cocos/assets/bundles/bg/npc_kind_auntie/0..3.png、npc_patrol_uncle/0..3.png、npc_wallet_owner/0..2.png（保留原 .meta 的 uuid，不要生成新 uuid）。
+2. 检查这些图的 .meta 导入设置：filter point/nearest、不 premultiply、不 mipmap、trim none，与 npc_guard 一致。
+3. 锚点 (16,30)，缩放沿用 r36 的物理像素整数倍规则。
+4. 加单测：这三组 NPC 文件为 32×32、meta 设置正确、uuid 未变。npm test 全过，主包 <3950KB。
+5. git commit -m "art: r37 阿姨/巡逻/失主 NPC 锐化图"

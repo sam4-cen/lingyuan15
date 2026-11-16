@@ -1,0 +1,17 @@
+Fix a design regression introduced in 222dfbf (B3), per the planner (game rules set by the boss):
+- Security/guard event: choosing 「礼貌离开」 only kicks the player out of the current location for now — NOT caught, no bag confiscation, NO death.
+- 「装作散步」 failure: confiscate the bag + ban from that location for the rest of the day (as originally designed) — NOT game over.
+- Death is ONLY triggered by hunger (饱腹) or stamina reaching zero. Remove any die('security') / die from guard events.
+- Death cause text: the 「被保安…」 (security) lines are used when the player was chased off by security earlier that same day and then dies of hunger/stamina; collapse lines stay for collapse. Keep {n} count logic sensible.
+- Keep security event weight 12; no other number changes.
+- Update tests to go through the real flow: polite leave -> alive, bag kept; pretend-walk fail -> alive, bag confiscated, location banned today; guard encounter then starve same day -> security death text; no guard -> starvation/stamina/collapse text.
+Package size (main is ~4013KB, limit 4096KB): move ALL r8 new images and settlement-card UI assets to the bg subpackage, and ALSO move card_daily, cert, share_death_bg (and share_cert_bg), card_fail into the bg subpackage; update all loaders to load from the subpackage with graceful fallback; regenerate/keep valid .meta. Report the new estimated main package size.
+Run `npx tsx --test test/game.test.ts` and `npx tsc -p cocos/tsconfig.check.json` (0 errors), keep src/core == cocos/assets/scripts/core, commit, report commit hash.
+
+ALSO fix these tester findings on 222dfbf (screenshots in /workspace/ly15-shots/):
+- B1 settlement text padding: left edge touches/overlaps the pixel border, right side 「欢迎」 overlaps the right ornament, last char 「你」 orphaned on its own line (r13_set_longname_zoom.png, r13_dt_settle_hqb.png). r8 replaced the settlement with a small pop-up card — make sure the NEW card has proper inner padding inside its 9-slice border, text never touches borders/ornaments, and no single-character orphan line (shrink font or rebalance). If any old settlement text panel remains, fix it the same way.
+- B4 landmark speech bubbles overlap the backpack grid: with normal bag 6 locations overlap the grid's top-left, with max bag all 8 do (大学城 worst, ~half a cell) (r13_bub_university_town_max_zoom.png, r13_dt_lm_university_maxbag.png). Position/clamp bubbles (and NPC if relevant) so they never intersect the backpack grid at any bag size, nor HUD/boxes/floor items.
+- B3 text: if the player was only caught by residential security and never did 「装作散步」, never show 「第1次『装作散步』，保安已经认识你了」; pick security lines that match what actually happened (use counts only when >0 and matching the action).
+- Failure page: price must not break across lines (e.g. 「（¥ / 27.00）」) — keep currency+amount together (non-breaking or shrink).
+- Failure share image: last char 「义」 of the roast line orphaned on its own line (r13_share_pair.png) — rebalance wrapping / shrink to avoid single-char last line.
+- Existing tests that assert "caught = death" must be changed to the correct rules above.

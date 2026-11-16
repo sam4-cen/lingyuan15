@@ -1,0 +1,25 @@
+续 followup45，此为 followup46。协调者已按你的方案在授权范围内完成福田 apply，并在一次有界等待后取了一张新图。请用官方 read_image 分析。不要让协调者自行判图，不要沿用 21:49 旧图或 DIAG FINAL 作为布局结论。不写仓库、不改游戏源码/构建/配置/AppID。注入专项不是真实触摸/全流程。没有完整 LY15_PROBE: READY 不签 below/merged，不签布局通过。不得仅凭 gamePresent 签通过。
+
+本轮事实（Asia/Shanghai / CST）：
+- 新工具已提取并语法检查：/workspace/ly15_r40_layout_probe_tools_20261116_2154/ ；driver sha256 3b58f1976c132b0a1e5c2b0cc1841fbb066ddfcccb9227c2319916077c9f2ca0，dx 代码为两个中心均 /2。
+- apply_layout_probe.py --approved 对现有已信任 futian_cbd 执行，APPLY_EXIT=0，createdAt 2026-11-16T21:57:11+0800。备份到全新 /Users/[REDACTED]/Documents/ly15_r40_layout_probe_backup_20261116_2154，未覆盖旧 DIAG/v2 备份。
+- 备份 game.js.init_diag_injected 仍为 11661B / 776ec99d330838705588ab10c8a0ad8f409a0c789d8a72a22901efa5c63515ed
+- 备份 DIAG driver 仍为 8954B / 3e7d8277b81e194ee77bdb02655745554c0c14c315409c4dbe2ea807ea51809c
+- 新 case game.js 17867B / ff88063b65a35ba8410398a682a2606248f37cff0d5212a799b15e64073e9699（与 apply_manifest 一致）
+- 新 __ly15_layout_probe_driver.js 15160B / 3b58f1976c132b0a1e5c2b0cc1841fbb066ddfcccb9227c2319916077c9f2ca0
+- 旧 v2 driver 仍在 case 且未改 3e120869d7cbeeeca482bfb9657e933b44b41ecd589d4091d8d65a63f8adf5a8
+- 密封原 game.js 未改。apply_manifest：/workspace/ly15_r40_layout_probe_apply_manifest_20261116_2154.json
+- 未 open 福田、未新建 case/窗口、未 GUI 点击、未编译、未清缓存。apply 后按你的 runbook 等待一次有界约 47 秒，再重新枚举取一张新图。
+- 本轮枚举：3031 与 3029 标题仍都是 lingyuan15，onscreen/layer0，同 bounds；2909 为 wechatgame。3029 不能替代福田证据。本轮只新截 3031（此前文件树已证为 futian_cbd），请从图内再次核实是否仍是 futian_cbd。
+
+新图（screencapture -x -l 3031 exit 0，非空，未覆盖旧件）：
+Mac：/Users/[REDACTED]/Documents/ly15_r40_layout_probe_shots_20261116_2158/window_3031_2158.png | 950409 bytes | 2026-11-16T21:58:28+0800
+box：/workspace/ly15-shots/window_3031_2158.png sha256 d0b68fd84402d6ca89f11f6121f27e535192dd8abb7fc5e933b501662a590467
+
+请立即 read_image 该新图，不能用 window_3031_2149.png 或更旧图替代。核：是否仍是已信任 futian_cbd；模式；是否有完整前缀
+LY15_PROBE: READY {...}
+且含 probeVersion、case=futian_cbd、player=baishizhou、buildTag=r40 d3d65b6、placementSide、badgeBounds、plateBounds、dx、stage、reason、logPath/logOk。检查 dx 是否符合两个中心 /2 的表达；below 是否 abs(dx)<=0.5 且不压玩家/自家图标；不安全是否 merged，不可横滑冒充居中。若无完整 READY 或只见 START/FAIL/无自动运行，明确写出，并给小游戏用户当前会话一个最小必要 GUI 刷新步骤后即停（不编按钮路径，不要求重复编译，不要建议现在 open 东门）。
+
+仅当福田该图已构成完整有效 READY 且专项证据完整时：不要现在让协调者 open 东门，因为当前 apply_layout_probe.py 把门禁和 prelude 写死为 futian_cbd/DIAG hash，不能直接用于东门。请同时给出东门的精确 apply 方案（从密封原 game.js 重组，case=dongmen、player=baishizhou，全新备份目录，先核东门当前 hash，不叠加，不新建 case），以及随后只 open 一次现有东门的命令与信任框停止条件。若福田未通过，不要给东门执行命令。
+
+尽快给简明可行动结果。

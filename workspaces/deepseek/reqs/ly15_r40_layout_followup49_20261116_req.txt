@@ -1,0 +1,21 @@
+续 followup48，此为 followup49。小游戏转用户 t126u 已答「好啦」，对应刚才在现有福田 3031 窗口把 Console 拉高/上滚以露出被裁掉的 READY 第一行。这是查看已有证据，不是重跑、不是普通编译、不是刷新福田、不是重开/prepare。请立即用官方 read_image 分析本轮唯一新图。不要沿用 window_3031_2214.png 代替本图，也不要把 3029/wechatgame 当福田证据。不要再让用户复制日志、再调整或重跑。不得伪造 READY，不得降低验收标准。注入专项不是真实触摸/全流程。
+
+本轮事实（Asia/Shanghai / CST）：
+- Mac [REDACTED] connected。2026-11-16 22:19:49 CST 重新枚举（不盲信历史 3031）：3031 与 3029 标题仍都是 lingyuan15，onscreen/layer0、同 bounds、ownerPID 2840；2909 标题为 wechatgame。本轮只新截本轮仍存在的 3031（此前文件树多次被你判定为已信任 futian_cbd）。请从图内再次核实是否仍是该窗口、小游戏模式、有无信任框。
+- 未重开/prepare/普通编译/刷新福田，未改任何文件，未清缓存，未新 case。
+- 当前福田注入仍是 v2：case game.js 17997B sha256 5885befa193132c14c2705cafb95a9666f652dbe33aacaa5283aa8e81f1f4b94；__ly15_layout_probe_driver_v2.js 15290B sha256 3e3f761bbb9608450b5913d37dec7cc1e0c2be26933cb2beb714b83bc1e3b508。
+- 上轮 2214 图（不可替代本图，但可作为已有证据整体判断的一部分）：API 已见第一行末尾 v2","case":"futian_cbd","player":"baishizhou","buildTag":"r40 d3d65b6"}，以及完整后四行 stage=ready reason=ROOT_OK placementSide=merged gamePresent=true；badgeBounds=739,920,127,67 plateBounds=739,920,349,67 dx=-111（两中心 /2 核验成立）；ownIconOverlap=false heroOverlap=false mergedHeightMatches=true belowCentered=false；logOk=true。缺完整前缀 LY15_PROBE: READY 与 probeVersion 全值，故未签通过。完整 final：/workspace/ly15_r40_layout_followup48_20261116_final.txt
+
+新图（screencapture -x -l 3031 exit 0，非空，未覆盖旧件，不可沿用 2214）：
+Mac：/Users/[REDACTED]/Documents/ly15_r40_layout_probe_v2_shots_20261116_2219/window_3031_2219.png | 1107304 bytes | 2026-11-16T22:19:57+0800
+box：/workspace/ly15-shots/window_3031_2219.png sha256 3bd613f9f083c1f28fc77dc90d1bdbf4341ee881e6f8ae33e6494e2c49eac1c1
+
+请立即 read_image 该新图。核是否出现完整：
+LY15_PROBE: READY {"probeVersion":"r40-layout-ready-v2","case":"futian_cbd","player":"baishizhou","buildTag":"r40 d3d65b6"}
+以及 stage/reason/placementSide/badgeBounds/plateBounds/dx/ownIconOverlap/heroOverlap/mergedHeightMatches/belowCentered/logPath/logOk。图与运行时须同窗匹配。dx 两中心 /2；below 须 abs(dx)<=0.5 且无玩家/自家图标冲突；若 merged，非 below 时 dx 不必为 0，不可横滑冒充居中，文字「限定」须完整。
+
+只有完整真实 READY 身份与布局字段都齐，才能明确签福田通过或不通过。若本图仍缺个别字段：请整体判断 2219+2214 及已有运行时字段，看是否已构成可绑定到当前 case/build 的完整证据；不要机械要求用户再做同一次拉高/上滚。实质证据仍不足才给出明确「不能签通过」的结论，且不要把「再复制/再调整/再编译」当主方案。
+
+若福田完整有效通过：不要假设东门已执行。现有 apply_layout_probe_v2.py 虽已参数化 --case-id dongmen，但仍须先核东门当前 hash（协调者尚未核，请勿编造东门 hash），再给出精确 apply（从密封原 game.js 重组，case=dongmen、player=baishizhou，全新备份目录，--expected-game-sha/--expected-game-bytes 用实际核到的值）以及只 open 一次现有东门的命令与信任框停止条件。协调者会在本任务内连续执行。
+
+尽快给简明可行动结果。

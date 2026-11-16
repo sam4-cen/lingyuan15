@@ -1,0 +1,3 @@
+立即read_image读取新图/workspace/ly15-shots/layout_futian_current_1458.png（测试报告760KB）。这是“注入驱动的布局测试”，非真实交互/完整流程。测试方转述小游戏已在其授权会话prepare exit0/PREPARED并cli open futian_cbd副本14:57:54北京时间exit0，重新枚举窗口2772，截图由该窗口取得并CopyToBox成功；这些是测试报告，不代替图片证据。
+请依据本新图识别当前页面/可见版本/Console错误，找实际驱动格式LY15_LAYOUT: READY与LOG_PATH，核case=futian_cbd、player=baishizhou、限定牌是否可见、可见牌边界/dx。看不清/被遮挡/日志截断就明确不足，不从截图文件名或预期驱动成功推断。代码辅助仅可只读/workspace/ly15_layout_tools_20261116_1451/layout_driver.js与RUNBOOK及既有上下文，不执行文件/不改文件/不访问Mac/不联网。测试指出RUNBOOK日志前缀错，以驱动冒号格式为准；写盘JSON先写再加logOk/logPath，所以文件无这两字段不是失败证据，Console READY才可能有。你要核实此差异，不能强制从文件获取不存在字段。
+返回图片明确可证/不能证实事项及一条必要最小只读取证命令；若错误需改仅新副本，则给具体最小脚本修正建议并标未执行，不修改原件/配置。日志路径只能从可见LOG_PATH/驱动精确机制取得，不扫描Library或猜AppID缓存路径；无路径则说明需补哪个Console片段或现有窗口下一张图。不要要求真实触摸或全套回归，不以盲时间图签通过。

@@ -1,0 +1,38 @@
+续 followup47，此为 followup48。协调者已按你的 v2 方案原样应用福田，并在一次有界等待后取了一张新图。请立即用官方 read_image 分析这张新图，不要沿用 window_3031_2158.png，不要自行降低验收标准，不得伪造 READY。注入专项不是真实触摸/全流程。不要建议安装 Buffer 插件或改基础库。t124u 21:34:43 旧 Console 不是当前福田证据。
+
+本轮事实（Asia/Shanghai / CST）：
+- followup47 完整 final：/workspace/ly15_r40_layout_followup47_20261116_final.txt
+- 新工具已原样提取并语法检查（python3 compile / node --check 均 0）：/workspace/ly15_r40_layout_probe_tools_20261116_2210/
+  - layout_probe_driver_v2.js 15290B sha256 3e3f761bbb9608450b5913d37dec7cc1e0c2be26933cb2beb714b83bc1e3b508
+  - apply_layout_probe_v2.py 8476B sha256 8af222de2d5990dcd2c53ae3edd949c7c7bd75fc742da3559267e41566628a5f
+  - LAYOUT_PROBE_V2_RUNBOOK.md 4130B sha256 4035beba17c5b52f2f766433d3fd1fd99166194f956b4d4152277e670ec912de
+  已确认 dx 为两个中心均 /2。
+- CopyFromBox 到新 Mac 目录 /Users/[REDACTED]/Documents/ly15_r40_layout_probe_tools_20261116_2210/，三文件 hash 一致。
+- 按 runbook 精确执行 apply_layout_probe_v2.py --approved --case-id futian_cbd，APPLY_EXIT=0，时间 2026-11-16 22:13:17 CST。从密封原 game.js 重组，不叠加。
+- 新备份（未覆盖旧备份）：/Users/[REDACTED]/Documents/ly15_r40_layout_probe_v2_backup_futian_20261116_2210/
+  其中 game.js.previous_injection 仍为 17867B / ff88063b65a35ba8410398a682a2606248f37cff0d5212a799b15e64073e9699
+  旧 DIAG 备份 2154 的 game.js.init_diag_injected 仍为 776ec99d330838705588ab10c8a0ad8f409a0c789d8a72a22901efa5c63515ed
+- 当前福田 case game.js 17997B sha256 5885befa193132c14c2705cafb95a9666f652dbe33aacaa5283aa8e81f1f4b94
+- 新 __ly15_layout_probe_driver_v2.js 15290B sha256 3e3f761bbb9608450b5913d37dec7cc1e0c2be26933cb2beb714b83bc1e3b508
+- 旧 v1 layout driver 文件仍在且未改 15160B / 3b58f1976c132b0a1e5c2b0cc1841fbb066ddfcccb9227c2319916077c9f2ca0
+- 密封原 loader 未改 2522B / 32a997ceb72b71efbc26553d820d1a2de26115a5b00ac48917351ca5ab68c5a3
+- apply_manifest box 副本：/workspace/ly15_r40_layout_probe_v2_apply_manifest_futian_20261116_2210.json
+- 未 open/重开福田、未新 case、未 GUI 点击、未编译、未清缓存。apply 后一次有界约 47 秒，再重新枚举：3031 与 3029 标题仍都是 lingyuan15，同 bounds；2909 为 wechatgame。本轮只新截 3031（此前文件树为 futian_cbd），请再次从图内核实是否仍是该窗口。3029 不能替代福田证据。
+
+新图（screencapture -x -l 3031 exit 0，非空，未覆盖旧件）：
+Mac：/Users/[REDACTED]/Documents/ly15_r40_layout_probe_v2_shots_20261116_2214/window_3031_2214.png | 937227 bytes | 2026-11-16T22:14:22+0800
+box：/workspace/ly15-shots/window_3031_2214.png sha256 5229019a35cfdf502bbf9c23bc1eb4dda672011b8a82f29be91671582effd75a
+
+请立即 read_image 该新图。核：
+- 是否仍是已信任 futian_cbd、小游戏模式、有无信任框；
+- 是否出现完整分行 READY：第一行必须是
+  LY15_PROBE: READY {"probeVersion":"r40-layout-ready-v2","case":"futian_cbd","player":"baishizhou","buildTag":"r40 d3d65b6"}
+  以及后续 stage/reason/placementSide/badgeBounds/plateBounds/dx/ownIconOverlap/heroOverlap/mergedHeightMatches/belowCentered/logPath/logOk；
+- 图与运行时是否同窗匹配；
+- dx 是否符合两个中心 /2；below 是否 abs(dx)<=0.5 且无玩家/自家图标冲突；若为 merged，非 below 时 dx 不必为 0，不可横滑冒充居中，文字“限定”是否完整。
+没有完整 READY 身份前缀不得签布局通过。不得仅凭 gamePresent 或 2158 候选数字签通过。
+
+若完整有效 READY 已构成：给出明确通过或不通过，并给出东门下一步精确命令（先核东门当前 hash，再 apply，只 open 一次现有东门；信任框即停）。协调者尚未核东门当前 hash，请不要编造东门 hash。
+若无自动运行或仍无完整 READY：明确写出现有图里实际可见内容与缺口；不要把“再请用户复制日志/再普通编译碰运气”当主结论。本轮已做最小工具改进并取了一次新证据。
+
+尽快给简明可行动结果。
